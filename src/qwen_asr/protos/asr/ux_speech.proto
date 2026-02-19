@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+import "google/protobuf/duration.proto";
+
+option java_multiple_files = true;
+option java_package = "com.ux.speech";
+option java_outer_classname = "UxSpeechProto";
+
+option go_package = "ulang.com/speech;speech";
+
+package ux_speech;
+
+service UxSpeech {
+  rpc StreamingRecognize(stream StreamingRecognizeRequest) returns (stream StreamingRecognizeResponse) {}
+}
+
+
+message RecognitionConfig {
+  enum AudioEncoding {
+    // 默认配置
+    AUDIO_ENCODING_UNSPECIFIED = 0;
+    // 16位有符号pcm (little-endian)
+    LINEAR16 = 1;
+  }
+  AudioEncoding encoding = 1;
+  // 采样率
+  uint32 sample_rate_hertz = 2;
+ 
+  string language_code = 3;
+
+  // 标点符号
+  bool enable_automatic_punctuation = 4;
+
+  // 热词列表，字符串数组格式， ["hey chatgpt", "openai"]
+  repeated string hotwords = 5;
+
+  // 热词偏置，用于调节热词识别概率（正值增强，负值削弱）
+  float hotword_bias = 6;
+}
+
+message RecognizeResponse {
+ repeated SpeechRecognitionResult results = 1;
+}
+
+message SpeechRecognitionResult {
+  SpeechRecognitionAlternative alternative = 1;
+  // 相对于音频开始的时间偏移
+  google.protobuf.Duration start_time = 2;
+
+  google.protobuf.Duration end_time = 3;
+}
+
+message StreamingRecognizeRequest {
+  oneof streaming_request {
+    StreamingRecognitionConfig streaming_config = 1;
+    bytes audio_content = 2;
+  }
+}
+
+message StreamingRecognitionConfig {
+  RecognitionConfig config = 1;
+  // 是否返回临时结果
+  bool interim_results = 2;
+}
+
+message StreamingRecognizeResponse {
+  repeated StreamingRecognitionResult results = 1;
+
+}
+
+message StreamingRecognitionResult{
+  SpeechRecognitionAlternative alternative = 1;
+  bool is_final = 2;
+  
+}
+
+message SpeechRecognitionAlternative {
+  string transcript = 1;
+  repeated WordInfo words = 2;
+}
+
+message WordInfo {
+  string word = 1;
+  google.protobuf.Duration start_time = 2;
+  google.protobuf.Duration end_time = 3;
+}

@@ -13,12 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-qwen_asr: Qwen3-ASR package.
-"""
-
-from .inference.qwen3_asr import Qwen3ASRModel
-
-from .inference.utils import parse_asr_output
-
-__all__ = ["__version__"]
+from .qwen3_asr import (
+    Qwen3ASRConfig,
+    Qwen3ASRForConditionalGeneration,
+    Qwen3ASRProcessor,
+)
