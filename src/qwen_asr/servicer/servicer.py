@@ -57,7 +57,7 @@ class ASRServicer(UxSpeechServicer):
         # ── Phase 1: collect config + audio from the client stream ────
         language: str | None = None
         sample_rate: int = SAMPLE_RATE
-        interim_results: bool = False
+        interim_results: bool = True
         config_received: bool = False
         audio_buf = bytearray()
 
@@ -66,6 +66,7 @@ class ASRServicer(UxSpeechServicer):
 
             if which == "streaming_config":
                 if config_received:
+                    logger.error("Duplicate streaming_config received, aborting RPC.")
                     context.abort(
                         grpc.StatusCode.INVALID_ARGUMENT,
                         "streaming_config must only be sent once as the first message.",
@@ -81,8 +82,14 @@ class ASRServicer(UxSpeechServicer):
                 if cfg.language_code:
                     language = cfg.language_code
 
+                logger.info(
+                    "Config received: language_code=%s, sample_rate=%d, interim_results=%s",
+                    language, sample_rate, interim_results,
+                )
+
             elif which == "audio_content":
                 if not config_received:
+                    logger.error("Audio received before streaming_config, aborting RPC.")
                     context.abort(
                         grpc.StatusCode.INVALID_ARGUMENT,
                         "First message must contain streaming_config.",
@@ -95,13 +102,21 @@ class ASRServicer(UxSpeechServicer):
                 continue
 
         if not config_received:
+            logger.error("No streaming_config received in request stream.")
             context.abort(
                 grpc.StatusCode.INVALID_ARGUMENT,
                 "No streaming_config received.",
             )
             return
 
+        audio_duration_sec = len(audio_buf) / 2 / max(sample_rate, 1)
+        logger.info(
+            "Audio collected: %d bytes (≈%.1fs at %dHz)",
+            len(audio_buf), audio_duration_sec, sample_rate,
+        )
+
         if len(audio_buf) == 0:
+            logger.info("Empty audio, returning blank result.")
             # No audio data – return an empty final result
             yield self._make_response("", is_final=True)
             return
@@ -110,6 +125,7 @@ class ASRServicer(UxSpeechServicer):
         try:
             wav = self._decode_audio_bytes(audio_buf, sample_rate)
         except Exception as exc:
+            logger.error("Failed to decode audio: %s", exc, exc_info=True)
             context.abort(
                 grpc.StatusCode.INVALID_ARGUMENT,
                 f"Failed to decode audio: {exc}",
@@ -118,6 +134,7 @@ class ASRServicer(UxSpeechServicer):
 
         # ── Phase 3 & 4: stream inference → stream responses ─────────
         try:
+            logger.info("Starting inference, language=%s", language)
             text_iter = self.model.transcribe_stream(
                 audio=(wav, SAMPLE_RATE),
                 language=language,
@@ -131,13 +148,15 @@ class ASRServicer(UxSpeechServicer):
                     accumulated += delta
                     yield self._make_response(accumulated, is_final=False)
                 yield self._make_response(accumulated, is_final=True)
+                logger.info("Transcription done: %s", accumulated)
             else:
                 # Collect everything, return once.
                 full_text = "".join(text_iter)
                 yield self._make_response(full_text, is_final=True)
+                logger.info("Transcription done: %s", full_text)
 
         except Exception as exc:
-            logger.exception("Inference failed")
+            logger.error("Inference failed: %s", exc, exc_info=True)
             context.abort(
                 grpc.StatusCode.INTERNAL,
                 f"Inference error: {exc}",

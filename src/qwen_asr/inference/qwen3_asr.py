@@ -13,10 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from transformers import AutoConfig, AutoProcessor
 from vllm import LLM as vLLM
 from vllm import ModelRegistry, SamplingParams
@@ -39,6 +42,7 @@ from .utils import (
     normalize_audios,
     normalize_language_name,
     parse_asr_output,
+    resolve_language_code,
     split_audio_into_chunks,
     validate_language,
 )
@@ -165,10 +169,12 @@ class Qwen3ASRModel:
                 - 若指定语言不受支持。
         """
         force_lang = self._normalize_force_language(language)
+        logger.info("transcribe: language=%s -> force_lang=%s", language, force_lang)
         raw_text = "".join(
             self.transcribe_stream(audio=audio, context=context, language=force_lang)
         )
         lang, txt = parse_asr_output(raw_text, user_language=force_lang)
+        logger.info("transcribe result: language=%s, text=%s", lang, txt)
         return ASRTranscription(language=lang, text=txt)
 
     def transcribe_stream(
@@ -314,11 +320,15 @@ class Qwen3ASRModel:
         ]
 
     def _normalize_force_language(self, language: Optional[str]) -> Optional[str]:
-        if language is None or str(language).strip() == "":
-            return None
-        force_lang = normalize_language_name(str(language))
-        validate_language(force_lang)
-        return force_lang
+        resolved = resolve_language_code(language)
+        if language is not None and str(language).strip() != "" and resolved is None:
+            logger.warning(
+                "Language code '%s' not recognised, falling back to auto-detect.",
+                language,
+            )
+        elif resolved is not None and resolved != language:
+            logger.debug("Language resolved: '%s' -> '%s'", language, resolved)
+        return resolved
 
     def _build_text_prompt(self, context: str, force_language: Optional[str]) -> str:
         """
@@ -401,9 +411,32 @@ class Qwen3ASRModel:
         sampling_params.output_kind = RequestOutputKind.DELTA
 
         if llm_engine.has_unfinished_requests():
-            raise RuntimeError(
-                "Streaming transcribe does not support concurrent unfinished requests."
+            logger.warning(
+                "Found unfinished requests from a previous call. "
+                "Aborting them before starting a new streaming transcribe."
             )
+            try:
+                llm_engine.abort_request(
+                    list(llm_engine._request_tracker.new_requests_event._waiters
+                         if hasattr(llm_engine, '_request_tracker') else []),
+                    internal=True,
+                )
+            except Exception:
+                pass
+            # Force-clear scheduler state if requests remain
+            if llm_engine.has_unfinished_requests():
+                try:
+                    # Drain remaining requests by stepping until clear
+                    _safety = 0
+                    while llm_engine.has_unfinished_requests() and _safety < 200:
+                        llm_engine.step()
+                        _safety += 1
+                except Exception:
+                    pass
+            if llm_engine.has_unfinished_requests():
+                raise RuntimeError(
+                    "Streaming transcribe does not support concurrent unfinished requests."
+                )
 
         request_id = add_request(inp, sampling_params, lora_request=None, priority=0)
 
@@ -431,8 +464,17 @@ class Qwen3ASRModel:
                     if delta_text:
                         yield delta_text
         except Exception:
+            logger.warning("Streaming inference interrupted, aborting request %s", request_id)
             try:
                 llm_engine.abort_request([request_id], internal=True)
+            except Exception:
+                pass
+            # Drain remaining steps to fully clear engine state
+            try:
+                _safety = 0
+                while llm_engine.has_unfinished_requests() and _safety < 200:
+                    llm_engine.step()
+                    _safety += 1
             except Exception:
                 pass
             raise

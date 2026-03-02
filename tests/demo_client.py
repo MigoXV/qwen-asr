@@ -29,7 +29,7 @@ from qwen_asr.protos.asr.ux_speech_pb2 import (
 from qwen_asr.protos.asr.ux_speech_pb2_grpc import UxSpeechStub
 
 # ── 服务端地址 ────────────────────────────────────────────────────────────────
-SERVER_ADDR = "localhost:50052"
+SERVER_ADDR = "localhost:50018"
 
 # 每次发送的音频块大小（单位：样本数，16kHz × 0.5s = 8000 samples = 16000 bytes）
 CHUNK_SAMPLES = 8000
