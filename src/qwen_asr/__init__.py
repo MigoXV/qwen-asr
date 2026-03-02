@@ -17,8 +17,15 @@
 qwen_asr: Qwen3-ASR package.
 """
 
-from .inference.qwen3_asr import Qwen3ASRModel
+try:
+    from .inference.utils import parse_asr_output
+except ImportError:  # pragma: no cover - optional during lightweight tests
+    parse_asr_output = None
 
-from .inference.utils import parse_asr_output
+try:
+    from .inference.qwen3_asr import ASRTranscription, Qwen3ASRModel
+except ImportError:  # pragma: no cover - optional during lightweight tests
+    ASRTranscription = None
+    Qwen3ASRModel = None
 
-__all__ = ["__version__"]
+__all__ = ["ASRTranscription", "Qwen3ASRModel", "parse_asr_output"]

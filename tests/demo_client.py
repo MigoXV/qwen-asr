@@ -12,10 +12,11 @@ gRPC 流式 ASR 客户端 Demo
   2. 运行本客户端：
        python tests/demo_client.py
 """
+import asyncio
 import io
 import time
 import urllib.request
-from typing import Generator, Tuple
+from typing import AsyncIterator, Tuple
 
 import grpc
 import numpy as np
@@ -31,8 +32,6 @@ from qwen_asr.protos.asr.ux_speech_pb2_grpc import UxSpeechStub
 # ── 服务端地址 ────────────────────────────────────────────────────────────────
 SERVER_ADDR = "localhost:50018"
 
-# 每次发送的音频块大小（单位：样本数，16kHz × 0.5s = 8000 samples = 16000 bytes）
-CHUNK_SAMPLES = 8000
 SAMPLE_RATE = 16000
 
 
@@ -53,18 +52,16 @@ def float32_to_pcm16_bytes(wav: np.ndarray) -> bytes:
     return pcm16.tobytes()
 
 
-def request_generator(
+async def request_generator(
     wav: np.ndarray,
     language: str = "",
     interim_results: bool = True,
-    chunk_samples: int = CHUNK_SAMPLES,
-) -> Generator[StreamingRecognizeRequest, None, None]:
+) -> AsyncIterator[StreamingRecognizeRequest]:
     """
     生成 StreamingRecognizeRequest 序列：
       - 第一条：streaming_config（含采样率、语言等配置）
-      - 后续：audio_content chunks（LINEAR16 PCM 分片）
+      - 第二条：完整 audio_content（LINEAR16 PCM）
     """
-    # 第一条：发送配置
     yield StreamingRecognizeRequest(
         streaming_config=StreamingRecognitionConfig(
             config=RecognitionConfig(
@@ -75,17 +72,11 @@ def request_generator(
             interim_results=interim_results,
         )
     )
-
-    # 后续：分片发送音频
-    pcm_bytes = float32_to_pcm16_bytes(wav)
-    step = chunk_samples * 2  # 每个 int16 样本占 2 字节
-    for offset in range(0, len(pcm_bytes), step):
-        chunk = pcm_bytes[offset : offset + step]
-        yield StreamingRecognizeRequest(audio_content=chunk)
+    yield StreamingRecognizeRequest(audio_content=float32_to_pcm16_bytes(wav))
 
 
-def stream_recognize(
-    stub: UxSpeechStub,
+async def stream_recognize(
+    stub,
     wav: np.ndarray,
     language: str = "",
     interim_results: bool = True,
@@ -101,7 +92,7 @@ def stream_recognize(
     t_first = None
     t_start = time.perf_counter()
 
-    for response in responses:
+    async for response in responses:
         for result in response.results:
             transcript = result.alternative.transcript
             is_final = result.is_final
@@ -123,9 +114,7 @@ def stream_recognize(
     return last_final
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
+async def main():
     urls = [
         ("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-ASR-Repo/asr_zh.wav", "Chinese"),
         ("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-ASR-Repo/asr_en.wav", "English"),
@@ -135,7 +124,7 @@ if __name__ == "__main__":
     samples = [(load_audio_from_url(url), lang) for url, lang in urls]
     print("下载完成。\n")
 
-    channel = grpc.insecure_channel(SERVER_ADDR)
+    channel = grpc.aio.insecure_channel(SERVER_ADDR)
     stub = UxSpeechStub(channel)
 
     for (audio, sr), lang in samples:
@@ -146,7 +135,11 @@ if __name__ == "__main__":
 
         print(f"{'=' * 60}")
         print(f"[stream] language={lang}  duration={len(audio)/SAMPLE_RATE:.1f}s")
-        stream_recognize(stub, audio, language=lang, interim_results=True)
+        await stream_recognize(stub, audio, language=lang, interim_results=True)
         print()
 
-    channel.close()
+    await channel.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
