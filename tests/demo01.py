@@ -1,31 +1,25 @@
-import io
-import urllib.request
-
-import numpy as np
-import soundfile as sf
+import asyncio
 import time
+
+import soundfile as sf
+
 from qwen_asr import Qwen3ASRModel
 
 
 def load_audio_from_url(url: str):
     """从 URL 下载音频并返回 (np.ndarray, sample_rate)"""
-    with urllib.request.urlopen(url) as resp:
-        audio_bytes = resp.read()
-    with io.BytesIO(audio_bytes) as f:
-        audio, sr = sf.read(f, dtype="float32", always_2d=False)
-    audio = np.asarray(audio, dtype=np.float32)
-    sr = int(sr)
+    audio, sr = sf.read(url, dtype="float32", always_2d=False)
     return audio, sr
 
 
-if __name__ == '__main__':
+async def main():
     # 预先下载音频，得到 numpy 数组
     urls = [
-        "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-ASR-Repo/asr_zh.wav",
-        "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-ASR-Repo/asr_en.wav",
+        "data-bin/ayato.wav",
+        "data-bin/paimon.wav",
     ]
     audio_list = [load_audio_from_url(u) for u in urls]
-    languages = ["Chinese", "English"]
+    languages = ["Chinese", "Chinese"]
 
     model = Qwen3ASRModel.LLM(
         model="/workspace/model-bin/Qwen/Qwen3-ASR-0.6B",
@@ -40,7 +34,7 @@ if __name__ == '__main__':
         print(f"\n[stream] language={lang}")
         parts = []
         t_start = time.perf_counter()
-        for chunk in model.transcribe_stream(
+        async for chunk in model.transcribe_stream(
             audio=audio,
             language=lang,  # or None for automatic language detection
         ):
@@ -51,3 +45,7 @@ if __name__ == '__main__':
         print()
         print(lang, "".join(parts))
         print(f"[timing] {lang} 转写耗时: {elapsed:.3f}s")
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

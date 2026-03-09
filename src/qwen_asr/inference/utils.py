@@ -66,6 +66,82 @@ SUPPORTED_LANGUAGES: List[str] = [
     "Hungarian",
     "Macedonian"
 ]
+
+# ---------------------------------------------------------------------------
+# Language code mapping: ISO 639-1 / BCP-47 / common aliases → canonical name
+# All keys MUST be lowercase. Looked up via `resolve_language_code()`.
+# ---------------------------------------------------------------------------
+LANGUAGE_CODE_MAP: dict[str, str] = {
+    # Chinese
+    "zh": "Chinese", "zh-cn": "Chinese", "zh-hans": "Chinese",
+    "zh-sg": "Chinese", "zh-tw": "Chinese", "zh-hant": "Chinese",
+    "cmn": "Chinese", "chinese": "Chinese",
+    # English
+    "en": "English", "en-us": "English", "en-gb": "English",
+    "en-au": "English", "en-in": "English", "english": "English",
+    # Cantonese
+    "yue": "Cantonese", "zh-hk": "Cantonese", "zh-yue": "Cantonese",
+    "cantonese": "Cantonese",
+    # Arabic
+    "ar": "Arabic", "ar-sa": "Arabic", "ar-eg": "Arabic", "arabic": "Arabic",
+    # German
+    "de": "German", "de-de": "German", "de-at": "German", "de-ch": "German",
+    "german": "German",
+    # French
+    "fr": "French", "fr-fr": "French", "fr-ca": "French", "french": "French",
+    # Spanish
+    "es": "Spanish", "es-es": "Spanish", "es-mx": "Spanish",
+    "es-ar": "Spanish", "spanish": "Spanish",
+    # Portuguese
+    "pt": "Portuguese", "pt-br": "Portuguese", "pt-pt": "Portuguese",
+    "portuguese": "Portuguese",
+    # Indonesian
+    "id": "Indonesian", "id-id": "Indonesian", "indonesian": "Indonesian",
+    # Italian
+    "it": "Italian", "it-it": "Italian", "italian": "Italian",
+    # Korean
+    "ko": "Korean", "ko-kr": "Korean", "korean": "Korean",
+    # Russian
+    "ru": "Russian", "ru-ru": "Russian", "russian": "Russian",
+    # Thai
+    "th": "Thai", "th-th": "Thai", "thai": "Thai",
+    # Vietnamese
+    "vi": "Vietnamese", "vi-vn": "Vietnamese", "vietnamese": "Vietnamese",
+    # Japanese
+    "ja": "Japanese", "ja-jp": "Japanese", "japanese": "Japanese",
+    # Turkish
+    "tr": "Turkish", "tr-tr": "Turkish", "turkish": "Turkish",
+    # Hindi
+    "hi": "Hindi", "hi-in": "Hindi", "hindi": "Hindi",
+    # Malay
+    "ms": "Malay", "ms-my": "Malay", "malay": "Malay",
+    # Dutch
+    "nl": "Dutch", "nl-nl": "Dutch", "nl-be": "Dutch", "dutch": "Dutch",
+    # Swedish
+    "sv": "Swedish", "sv-se": "Swedish", "swedish": "Swedish",
+    # Danish
+    "da": "Danish", "da-dk": "Danish", "danish": "Danish",
+    # Finnish
+    "fi": "Finnish", "fi-fi": "Finnish", "finnish": "Finnish",
+    # Polish
+    "pl": "Polish", "pl-pl": "Polish", "polish": "Polish",
+    # Czech
+    "cs": "Czech", "cs-cz": "Czech", "czech": "Czech",
+    # Filipino
+    "fil": "Filipino", "tl": "Filipino", "filipino": "Filipino",
+    "tagalog": "Filipino",
+    # Persian
+    "fa": "Persian", "fa-ir": "Persian", "persian": "Persian", "farsi": "Persian",
+    # Greek
+    "el": "Greek", "el-gr": "Greek", "greek": "Greek",
+    # Romanian
+    "ro": "Romanian", "ro-ro": "Romanian", "romanian": "Romanian",
+    # Hungarian
+    "hu": "Hungarian", "hu-hu": "Hungarian", "hungarian": "Hungarian",
+    # Macedonian
+    "mk": "Macedonian", "mk-mk": "Macedonian", "macedonian": "Macedonian",
+}
+
 _ASR_TEXT_TAG = "<asr_text>"
 _LANG_PREFIX = "language "
 
@@ -104,6 +180,46 @@ def validate_language(language: str) -> None:
     """
     if language not in SUPPORTED_LANGUAGES:
         raise ValueError(f"Unsupported language: {language}. Supported: {SUPPORTED_LANGUAGES}")
+
+
+def resolve_language_code(code: str | None) -> str | None:
+    """
+    Resolve a language code / name to the canonical English full name
+    used by Qwen3-ASR.
+
+    Accepts ISO 639-1 codes (``"zh"``, ``"en"``), BCP-47 tags
+    (``"zh-cn"``, ``"en-us"``), or the English full names themselves
+    (``"Chinese"``, ``"English"``).
+
+    If the input cannot be mapped to any of the 30 supported languages,
+    ``None`` is returned so that the model falls back to automatic
+    language detection.
+
+    Args:
+        code: Raw language code or name from the client.  ``None`` and
+              empty strings are treated as "auto-detect".
+
+    Returns:
+        Canonical language name (e.g. ``"Chinese"``) or ``None``.
+    """
+    if code is None:
+        return None
+    key = str(code).strip()
+    if not key:
+        return None
+
+    # 1) Direct lookup in the mapping table (case-insensitive)
+    result = LANGUAGE_CODE_MAP.get(key.lower())
+    if result is not None:
+        return result
+
+    # 2) Fallback: capitalize and check SUPPORTED_LANGUAGES directly
+    normalized = key[:1].upper() + key[1:].lower()
+    if normalized in SUPPORTED_LANGUAGES:
+        return normalized
+
+    # 3) Not recognised → auto-detect
+    return None
 
 
 def ensure_list(x: MaybeList) -> List[Any]:
