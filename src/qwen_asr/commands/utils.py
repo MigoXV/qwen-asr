@@ -49,6 +49,7 @@ def build_llm_kwargs(
     gpu_memory_utilization: float,
     max_model_len: int,
     device: str,
+    enforce_eager: bool = False,
     cuda_available: bool | None = None,
 ) -> dict[str, Any]:
     device = normalize_device(device)
@@ -60,6 +61,8 @@ def build_llm_kwargs(
         "gpu_memory_utilization": gpu_memory_utilization,
         "max_model_len": max_model_len,
     }
+    if enforce_eager:
+        kwargs["enforce_eager"] = True
 
     if device == DEVICE_CPU or (device == DEVICE_AUTO and not cuda_available):
         if device == DEVICE_CPU:

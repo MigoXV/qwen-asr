@@ -68,6 +68,12 @@ def serve(
         help="Inference device mode: auto, cuda, or cpu.",
         envvar="DEVICE",
     ),
+    enforce_eager: bool = typer.Option(
+        False,
+        "--enforce-eager/--no-enforce-eager",
+        help="Disable vLLM compile/warmup and run entirely in eager mode.",
+        envvar="ENFORCE_EAGER",
+    ),
 ) -> None:
     """Start the Qwen3-ASR gRPC server."""
     logging.basicConfig(
@@ -89,6 +95,7 @@ def serve(
                 gpu_memory_utilization=gpu_memory_utilization,
                 max_model_len=max_model_len,
                 device=device,
+                enforce_eager=enforce_eager,
             )
         )
     except KeyboardInterrupt:
@@ -105,6 +112,7 @@ async def _serve_async(
     gpu_memory_utilization: float,
     max_model_len: int,
     device: str,
+    enforce_eager: bool,
 ) -> None:
     logger.info("Loading model from %s …", model)
     llm_kwargs = build_llm_kwargs(
@@ -112,17 +120,23 @@ async def _serve_async(
         gpu_memory_utilization=gpu_memory_utilization,
         max_model_len=max_model_len,
         device=device,
+        enforce_eager=enforce_eager,
     )
     try:
         asr_model = Qwen3ASRModel.LLM(model=model, **llm_kwargs)
     except Exception:
         if llm_kwargs.get("device") == DEVICE_CPU:
-            logger.error(
-                "Failed to initialize vLLM in CPU mode. CUDA was not detected or "
-                "DEVICE=cpu was requested, so the server tried device='cpu'. "
-                "This image may contain a CUDA-only vLLM build; use a CPU-enabled "
-                "vLLM image, or run the container with --gpus all for GPU inference."
+            error_message = (
+                "Failed to initialize vLLM in CPU mode. Common causes include "
+                "torch.compile or inductor warmup instability, insufficient memory, "
+                "or unsupported CPU runtime settings."
             )
+            if not llm_kwargs.get("enforce_eager"):
+                error_message += (
+                    " Retry with ENFORCE_EAGER=1 or --enforce-eager to disable "
+                    "vLLM compile and warmup."
+                )
+            logger.error("%s", error_message)
         raise
     logger.info("Model loaded successfully.")
 

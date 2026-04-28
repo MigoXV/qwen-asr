@@ -19,6 +19,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
             gpu_memory_utilization=0.5,
             max_model_len=4096,
             device="auto",
+            enforce_eager=False,
             cuda_available=True,
         )
 
@@ -33,6 +34,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
             gpu_memory_utilization=0.5,
             max_model_len=4096,
             device="auto",
+            enforce_eager=False,
             cuda_available=False,
         )
 
@@ -45,6 +47,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
                 gpu_memory_utilization=0.5,
                 max_model_len=4096,
                 device="cuda",
+                enforce_eager=False,
                 cuda_available=False,
             )
 
@@ -54,10 +57,48 @@ class AppDeviceSelectionTest(unittest.TestCase):
             gpu_memory_utilization=0.5,
             max_model_len=4096,
             device="cpu",
+            enforce_eager=False,
             cuda_available=True,
         )
 
         self.assertEqual(kwargs["device"], "cpu")
+
+    def test_enforce_eager_is_omitted_by_default(self):
+        kwargs = command_utils.build_llm_kwargs(
+            max_new_tokens=512,
+            gpu_memory_utilization=0.5,
+            max_model_len=4096,
+            device="auto",
+            enforce_eager=False,
+            cuda_available=True,
+        )
+
+        self.assertNotIn("enforce_eager", kwargs)
+
+    def test_enforce_eager_is_added_when_enabled(self):
+        kwargs = command_utils.build_llm_kwargs(
+            max_new_tokens=512,
+            gpu_memory_utilization=0.5,
+            max_model_len=4096,
+            device="auto",
+            enforce_eager=True,
+            cuda_available=True,
+        )
+
+        self.assertTrue(kwargs["enforce_eager"])
+
+    def test_cpu_and_enforce_eager_can_be_used_together(self):
+        kwargs = command_utils.build_llm_kwargs(
+            max_new_tokens=512,
+            gpu_memory_utilization=0.5,
+            max_model_len=4096,
+            device="cpu",
+            enforce_eager=True,
+            cuda_available=True,
+        )
+
+        self.assertEqual(kwargs["device"], "cpu")
+        self.assertTrue(kwargs["enforce_eager"])
 
     def test_invalid_device_fails_clearly(self):
         with self.assertRaisesRegex(ValueError, "Invalid DEVICE value"):
@@ -66,6 +107,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
                 gpu_memory_utilization=0.5,
                 max_model_len=4096,
                 device="tpu",
+                enforce_eager=False,
                 cuda_available=True,
             )
 
