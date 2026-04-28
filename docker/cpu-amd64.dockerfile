@@ -1,4 +1,4 @@
-FROM registry.cn-hangzhou.aliyuncs.com/migo-dl/pytorch:2.8.0-amd64
+FROM registry.cn-hangzhou.aliyuncs.com/migo-dl/vllm:0.14.1-torch291-amd64
 
 # 设置工作目录
 WORKDIR /app
