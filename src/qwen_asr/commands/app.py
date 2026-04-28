@@ -12,26 +12,22 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
 
 import grpc
 import typer
 
+from qwen_asr.commands.utils import (
+    DEVICE_AUTO,
+    DEVICE_CPU,
+    DeviceSelectionError,
+    build_llm_kwargs,
+    normalize_device,
+)
 from qwen_asr.inference.qwen3_asr import Qwen3ASRModel
 from qwen_asr.protos.asr.ux_speech_pb2_grpc import add_UxSpeechServicer_to_server
 from qwen_asr.servicer.servicer import ASRServicer
 
 logger = logging.getLogger(__name__)
-
-_DEVICE_AUTO = "auto"
-_DEVICE_CUDA = "cuda"
-_DEVICE_CPU = "cpu"
-_DEVICE_CHOICES = {_DEVICE_AUTO, _DEVICE_CUDA, _DEVICE_CPU}
-
-
-class DeviceSelectionError(RuntimeError):
-    """Raised when the requested inference device cannot be used."""
-
 
 app = typer.Typer(
     name="qwen-asr",
@@ -68,7 +64,7 @@ def serve(
         envvar="MAX_MODEL_LEN",
     ),
     device: str = typer.Option(
-        _DEVICE_AUTO,
+        DEVICE_AUTO,
         help="Inference device mode: auto, cuda, or cpu.",
         envvar="DEVICE",
     ),
@@ -79,7 +75,7 @@ def serve(
         format="%(asctime)s %(levelname)-8s %(name)s - %(message)s",
     )
     try:
-        device = _normalize_device(device)
+        device = normalize_device(device)
     except ValueError as exc:
         logger.error("%s", exc)
         raise typer.Exit(code=2) from exc
@@ -111,7 +107,7 @@ async def _serve_async(
     device: str,
 ) -> None:
     logger.info("Loading model from %s …", model)
-    llm_kwargs = _build_llm_kwargs(
+    llm_kwargs = build_llm_kwargs(
         max_new_tokens=max_new_tokens,
         gpu_memory_utilization=gpu_memory_utilization,
         max_model_len=max_model_len,
@@ -120,7 +116,7 @@ async def _serve_async(
     try:
         asr_model = Qwen3ASRModel.LLM(model=model, **llm_kwargs)
     except Exception:
-        if llm_kwargs.get("device") == _DEVICE_CPU:
+        if llm_kwargs.get("device") == DEVICE_CPU:
             logger.error(
                 "Failed to initialize vLLM in CPU mode. CUDA was not detected or "
                 "DEVICE=cpu was requested, so the server tried device='cpu'. "
@@ -142,72 +138,6 @@ async def _serve_async(
     finally:
         await server.stop(grace=5)
         servicer.close()
-
-
-def _cuda_is_available() -> bool:
-    try:
-        import torch
-    except ImportError:
-        logger.warning("PyTorch is not installed; falling back to CPU mode.")
-        return False
-    except Exception as exc:
-        logger.warning("Failed to import PyTorch: %s; falling back to CPU mode.", exc)
-        return False
-
-    try:
-        return bool(torch.cuda.is_available())
-    except Exception as exc:
-        logger.warning(
-            "Failed to check CUDA availability: %s; falling back to CPU mode.", exc
-        )
-        return False
-
-
-def _normalize_device(device: str) -> str:
-    normalized = (device or _DEVICE_AUTO).strip().lower()
-    if normalized not in _DEVICE_CHOICES:
-        choices = ", ".join(sorted(_DEVICE_CHOICES))
-        raise ValueError(f"Invalid DEVICE value '{device}'. Expected one of: {choices}.")
-    return normalized
-
-
-def _build_llm_kwargs(
-    *,
-    max_new_tokens: int,
-    gpu_memory_utilization: float,
-    max_model_len: int,
-    device: str,
-    cuda_available: bool | None = None,
-) -> dict[str, Any]:
-    device = _normalize_device(device)
-    if cuda_available is None:
-        cuda_available = _cuda_is_available()
-
-    kwargs: dict[str, Any] = {
-        "max_new_tokens": max_new_tokens,
-        "gpu_memory_utilization": gpu_memory_utilization,
-        "max_model_len": max_model_len,
-    }
-
-    if device == _DEVICE_CPU or (device == _DEVICE_AUTO and not cuda_available):
-        if device == _DEVICE_CPU:
-            logger.warning(
-                "Starting vLLM with device='cpu'. CPU inference may be slow and "
-                "requires a CPU-enabled vLLM build."
-            )
-        else:
-            logger.warning(
-                "CUDA is not available; starting vLLM with device='cpu'. CPU inference "
-                "may be slow and requires a CPU-enabled vLLM build."
-            )
-        kwargs["device"] = _DEVICE_CPU
-    elif device == _DEVICE_CUDA and not cuda_available:
-        raise DeviceSelectionError(
-            "DEVICE=cuda was requested, but CUDA is not available. Run the container "
-            "with --gpus all or use DEVICE=cpu to try CPU inference."
-        )
-
-    return kwargs
 
 
 if __name__ == "__main__":
