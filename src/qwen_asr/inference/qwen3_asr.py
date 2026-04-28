@@ -49,6 +49,18 @@ ModelRegistry.register_model(
 logger = logging.getLogger(__name__)
 
 
+def _filter_async_engine_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    valid_params = inspect.signature(AsyncEngineArgs.__init__).parameters
+    filtered_kwargs = {key: value for key, value in kwargs.items() if key in valid_params}
+    dropped_keys = sorted(set(kwargs) - set(filtered_kwargs))
+    if dropped_keys:
+        logger.warning(
+            "Ignoring unsupported AsyncEngineArgs kwargs for this vLLM version: %s",
+            ", ".join(dropped_keys),
+        )
+    return filtered_kwargs
+
+
 @dataclass
 class ASRTranscription:
     language: str
@@ -82,8 +94,9 @@ class Qwen3ASRModel:
         max_new_tokens: Optional[int] = 4096,
         **kwargs,
     ) -> "Qwen3ASRModel":
+        engine_kwargs = _filter_async_engine_kwargs(kwargs)
         llm = AsyncLLMEngine.from_engine_args(
-            AsyncEngineArgs(model=model, **kwargs)
+            AsyncEngineArgs(model=model, **engine_kwargs)
         )
         processor = Qwen3ASRProcessor.from_pretrained(model, fix_mistral_regex=True)
         sampling_params = SamplingParams(
