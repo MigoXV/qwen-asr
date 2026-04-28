@@ -17,6 +17,7 @@ from qwen_asr.protos.asr.ux_speech_pb2 import (
 )
 from google.protobuf.duration_pb2 import Duration
 from qwen_asr.protos.asr.ux_speech_pb2_grpc import UxSpeechServicer
+from qwen_asr.servicer.transcript import StreamingTranscriptParser
 
 if TYPE_CHECKING:
     from qwen_asr.inference.qwen3_asr import Qwen3ASRModel
@@ -108,7 +109,7 @@ class ASRServicer(UxSpeechServicer):
             interim_results,
         )
 
-        final_result = ""
+        transcript_parser = StreamingTranscriptParser(language_code=language_code)
         try:
             async for chunk in self.model.transcribe_stream(
                 audio=(audio, sample_rate),
@@ -117,11 +118,15 @@ class ASRServicer(UxSpeechServicer):
                 if not self._context_is_active(context):
                     logger.info("Client disconnected; stopping response stream.")
                     break
-                final_result += chunk
-                if interim_results:
-                    yield self._make_response(final_result, is_final=False, word=chunk)
+                update = transcript_parser.push(chunk)
+                if interim_results and update.changed:
+                    yield self._make_response(
+                        update.transcript, is_final=False, word=update.delta
+                    )
             if self._context_is_active(context):
-                yield self._make_response(final_result, is_final=True)
+                yield self._make_response(
+                    transcript_parser.transcript, is_final=True
+                )
         except asyncio.CancelledError:
             logger.info("StreamingRecognize cancelled by client.")
             return

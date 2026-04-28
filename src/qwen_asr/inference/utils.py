@@ -529,8 +529,9 @@ def parse_asr_output(
       - No tag: treat whole string as text.
       - "language None<asr_text>": treat as empty audio -> ("", "")
 
-    If user_language is provided, language is forced to user_language and raw is treated as text-only
-    (the model is expected to output plain transcription without metadata).
+    If user_language is provided, language is forced to user_language.  We still
+    defensively strip a leaked ``language X<asr_text>`` prefix because some model
+    outputs may echo the assistant prompt instead of returning pure text only.
 
     Args:
         raw: Raw decoded string.
@@ -548,8 +549,14 @@ def parse_asr_output(
     s = detect_and_fix_repetitions(s)
 
     if user_language:
-        # user explicitly forced language => model output is treated as pure text
-        return user_language, s
+        text = s
+        if _ASR_TEXT_TAG in text:
+            _, text = text.split(_ASR_TEXT_TAG, 1)
+        else:
+            forced_prefix = f"{_LANG_PREFIX}{user_language}"
+            if text.lower().startswith(forced_prefix.lower()):
+                text = text[len(forced_prefix):]
+        return user_language, text.strip()
 
     meta_part = s
     text_part = ""

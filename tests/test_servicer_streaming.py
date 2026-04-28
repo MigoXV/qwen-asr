@@ -116,6 +116,65 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
         finally:
             servicer.close()
 
+    async def test_forced_language_prompt_echo_is_not_exposed_in_transcript(self):
+        scripts = {
+            "|Chinese": [
+                ("language Chinese<asr_text>你", False),
+                ("language Chinese<asr_text>你好", True),
+            ],
+        }
+        servicer = ASRServicer(
+            FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
+        )
+        try:
+            responses = await collect_responses(
+                servicer.StreamingRecognize(
+                    make_requests(
+                        "Chinese",
+                        audio_bytes=(200).to_bytes(2, "little", signed=True),
+                    ),
+                    FakeContext(),
+                )
+            )
+            self.assertEqual(collect_transcripts(responses), ["你", "你好", "你好"])
+            self.assertEqual(
+                [response.results[0].alternative.words[0].word for response in responses],
+                ["你", "好", ""],
+            )
+        finally:
+            servicer.close()
+
+    async def test_incomplete_language_prefix_is_not_exposed_in_interim_results(self):
+        scripts = {
+            "|auto": [
+                ("lang", False),
+                ("langute", False),
+                ("language None", False),
+                ("language None<asr_text>la", False),
+                ("language None<asr_text>la la", True),
+            ],
+        }
+        servicer = ASRServicer(
+            FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
+        )
+        try:
+            responses = await collect_responses(
+                servicer.StreamingRecognize(
+                    make_requests(
+                        "",
+                        audio_bytes=(200).to_bytes(2, "little", signed=True),
+                    ),
+                    FakeContext(),
+                )
+            )
+            self.assertEqual(collect_transcripts(responses), ["la", "la la", "la la"])
+            self.assertEqual(
+                [response.results[0].is_final for response in responses],
+                [False, False, True],
+            )
+        finally:
+            servicer.close()
+
     async def test_client_cancellation_aborts_only_current_request(self):
         scripts = {
             "|Chinese": [("你", False), ("你好", False), ("你好啊", True)],
