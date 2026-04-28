@@ -15,6 +15,8 @@
 # limitations under the License.
 import base64
 import io
+import inspect
+import logging
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Iterable, List, Optional, Tuple, Union
@@ -23,6 +25,8 @@ from urllib.parse import urlparse
 import librosa
 import numpy as np
 import soundfile as sf
+
+logger = logging.getLogger(__name__)
 
 AudioLike = Union[
     str,                      # wav path / URL / base64
@@ -144,6 +148,21 @@ LANGUAGE_CODE_MAP: dict[str, str] = {
 
 _ASR_TEXT_TAG = "<asr_text>"
 _LANG_PREFIX = "language "
+
+
+def filter_async_engine_kwargs(
+    async_engine_args_cls: type,
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
+    valid_params = inspect.signature(async_engine_args_cls.__init__).parameters
+    filtered_kwargs = {key: value for key, value in kwargs.items() if key in valid_params}
+    dropped_keys = sorted(set(kwargs) - set(filtered_kwargs))
+    if dropped_keys:
+        logger.warning(
+            "Ignoring unsupported AsyncEngineArgs kwargs for this vLLM version: %s",
+            ", ".join(dropped_keys),
+        )
+    return filtered_kwargs
 
 
 def normalize_language_name(language: str) -> str:

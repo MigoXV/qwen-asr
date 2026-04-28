@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
-import inspect
 import logging
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -34,6 +33,7 @@ from qwen_asr.core.vllm_backend import (
 
 from .utils import (
     AudioLike,
+    filter_async_engine_kwargs,
     normalize_audio_input,
     parse_asr_output,
     resolve_language_code,
@@ -47,18 +47,6 @@ ModelRegistry.register_model(
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _filter_async_engine_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-    valid_params = inspect.signature(AsyncEngineArgs.__init__).parameters
-    filtered_kwargs = {key: value for key, value in kwargs.items() if key in valid_params}
-    dropped_keys = sorted(set(kwargs) - set(filtered_kwargs))
-    if dropped_keys:
-        logger.warning(
-            "Ignoring unsupported AsyncEngineArgs kwargs for this vLLM version: %s",
-            ", ".join(dropped_keys),
-        )
-    return filtered_kwargs
 
 
 @dataclass
@@ -94,7 +82,7 @@ class Qwen3ASRModel:
         max_new_tokens: Optional[int] = 4096,
         **kwargs,
     ) -> "Qwen3ASRModel":
-        engine_kwargs = _filter_async_engine_kwargs(kwargs)
+        engine_kwargs = filter_async_engine_kwargs(AsyncEngineArgs, kwargs)
         llm = AsyncLLMEngine.from_engine_args(
             AsyncEngineArgs(model=model, **engine_kwargs)
         )
