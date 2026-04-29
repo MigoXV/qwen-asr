@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional
 
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoProcessor
@@ -60,7 +60,23 @@ class TransformersQwen3ASRModel:
         inputs = self.processor(text=[prompt], audio=[wav], return_tensors="pt")
         inputs = {k: v.to(self.model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
         with torch.no_grad():
-            output_ids = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens)
+            output = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens)
+        output_ids = self._extract_generated_sequences(output)
         gen_ids = output_ids[:, inputs["input_ids"].shape[1]:]
         text = self.processor.batch_decode(gen_ids, skip_special_tokens=True)[0]
         yield text
+
+    @staticmethod
+    def _extract_generated_sequences(output: Any) -> torch.Tensor:
+        if isinstance(output, torch.Tensor):
+            return output
+
+        sequences = getattr(output, "sequences", None)
+        if isinstance(sequences, torch.Tensor):
+            return sequences
+
+        raise TypeError(
+            "Unsupported generate() return type: "
+            f"{type(output).__name__}. Expected a tensor or an object with a "
+            "'sequences' tensor attribute."
+        )
