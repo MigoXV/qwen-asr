@@ -11,6 +11,10 @@ DEVICE_CUDA = "cuda"
 DEVICE_CPU = "cpu"
 DEVICE_CHOICES = {DEVICE_AUTO, DEVICE_CUDA, DEVICE_CPU}
 
+BACKEND_VLLM = "vllm"
+BACKEND_TRANSFORMERS = "transformers"
+BACKEND_CHOICES = {BACKEND_VLLM, BACKEND_TRANSFORMERS}
+
 
 class DeviceSelectionError(RuntimeError):
     """Raised when the requested inference device cannot be used."""
@@ -83,3 +87,13 @@ def build_llm_kwargs(
         )
 
     return kwargs
+
+
+def normalize_backend(backend: str) -> str:
+    normalized = (backend or BACKEND_VLLM).strip().lower()
+    if normalized not in BACKEND_CHOICES:
+        choices = ", ".join(sorted(BACKEND_CHOICES))
+        raise ValueError(
+            f"Invalid BACKEND value '{backend}'. Expected one of: {choices}."
+        )
+    return normalized

@@ -17,13 +17,15 @@ import grpc
 import typer
 
 from qwen_asr.commands.utils import (
+    BACKEND_TRANSFORMERS,
+    BACKEND_VLLM,
     DEVICE_AUTO,
     DEVICE_CPU,
     DeviceSelectionError,
     build_llm_kwargs,
+    normalize_backend,
     normalize_device,
 )
-from qwen_asr.inference.qwen3_asr import Qwen3ASRModel
 from qwen_asr.protos.asr.ux_speech_pb2_grpc import add_UxSpeechServicer_to_server
 from qwen_asr.servicer.servicer import ASRServicer
 
@@ -74,6 +76,11 @@ def serve(
         help="Disable vLLM compile/warmup and run entirely in eager mode.",
         envvar="ENFORCE_EAGER",
     ),
+    backend: str = typer.Option(
+        BACKEND_VLLM,
+        help="Inference backend: vllm or transformers.",
+        envvar="BACKEND",
+    ),
 ) -> None:
     """Start the Qwen3-ASR gRPC server."""
     logging.basicConfig(
@@ -82,6 +89,7 @@ def serve(
     )
     try:
         device = normalize_device(device)
+        backend = normalize_backend(backend)
     except ValueError as exc:
         logger.error("%s", exc)
         raise typer.Exit(code=2) from exc
@@ -96,6 +104,7 @@ def serve(
                 max_model_len=max_model_len,
                 device=device,
                 enforce_eager=enforce_eager,
+                backend=backend,
             )
         )
     except KeyboardInterrupt:
@@ -113,6 +122,7 @@ async def _serve_async(
     max_model_len: int,
     device: str,
     enforce_eager: bool,
+    backend: str,
 ) -> None:
     logger.info("Loading model from %s …", model)
     llm_kwargs = build_llm_kwargs(
@@ -123,9 +133,15 @@ async def _serve_async(
         enforce_eager=enforce_eager,
     )
     try:
-        asr_model = Qwen3ASRModel.LLM(model=model, **llm_kwargs)
+        if backend == BACKEND_TRANSFORMERS:
+            from qwen_asr.inference.transformers_qwen3_asr import TransformersQwen3ASRModel
+            tf_kwargs = {"max_new_tokens": llm_kwargs.get("max_new_tokens", max_new_tokens), "device": llm_kwargs.get("device")}
+            asr_model = TransformersQwen3ASRModel.LLM(model=model, **tf_kwargs)
+        else:
+            from qwen_asr.inference.qwen3_asr import Qwen3ASRModel
+            asr_model = Qwen3ASRModel.LLM(model=model, **llm_kwargs)
     except Exception:
-        if llm_kwargs.get("device") == DEVICE_CPU:
+        if backend == BACKEND_VLLM and llm_kwargs.get("device") == DEVICE_CPU:
             error_message = (
                 "Failed to initialize vLLM in CPU mode. Common causes include "
                 "torch.compile or inductor warmup instability, insufficient memory, "
