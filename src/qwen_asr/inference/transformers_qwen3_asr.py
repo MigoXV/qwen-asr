@@ -1,11 +1,18 @@
 # coding=utf-8
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
+from threading import Thread
 from typing import Any, AsyncIterator, Optional
 
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoProcessor
+from transformers import (
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoProcessor,
+    TextIteratorStreamer,
+)
 
 from qwen_asr.core.transformers_backend import (
     Qwen3ASRConfig,
@@ -59,12 +66,56 @@ class TransformersQwen3ASRModel:
 
         inputs = self.processor(text=[prompt], audio=[wav], return_tensors="pt")
         inputs = {k: v.to(self.model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
-        with torch.no_grad():
-            output = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens)
-        output_ids = self._extract_generated_sequences(output)
-        gen_ids = output_ids[:, inputs["input_ids"].shape[1]:]
-        text = self.processor.batch_decode(gen_ids, skip_special_tokens=True)[0]
-        yield text
+        streamer = TextIteratorStreamer(
+            self.processor.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+        generation_error: list[BaseException] = []
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[str | object] = asyncio.Queue()
+        sentinel = object()
+
+        def run_generation() -> None:
+            try:
+                with torch.no_grad():
+                    self.model.generate(
+                        **inputs,
+                        max_new_tokens=self.max_new_tokens,
+                        streamer=streamer,
+                    )
+            except BaseException as exc:
+                generation_error.append(exc)
+                end = getattr(streamer, "end", None)
+                if callable(end):
+                    end()
+
+        def consume_streamer() -> None:
+            try:
+                for text in streamer:
+                    loop.call_soon_threadsafe(queue.put_nowait, text)
+            except BaseException as exc:
+                generation_error.append(exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+
+        generation_thread = Thread(target=run_generation, daemon=True)
+        streamer_thread = Thread(target=consume_streamer, daemon=True)
+        streamer_thread.start()
+        generation_thread.start()
+
+        while True:
+            item = await queue.get()
+            if item is sentinel:
+                break
+            if item:
+                yield str(item)
+
+        generation_thread.join()
+        streamer_thread.join()
+
+        if generation_error:
+            raise RuntimeError("Transformers streaming generation failed") from generation_error[0]
 
     @staticmethod
     def _extract_generated_sequences(output: Any) -> torch.Tensor:
