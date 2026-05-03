@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from qwen_asr.inference.utils import parse_asr_output
+from qwen_asr.inferencers.text.asr_output import parse_asr_output
 
 
 class ParseAsrOutputTest(unittest.TestCase):

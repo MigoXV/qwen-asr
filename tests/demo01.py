@@ -3,7 +3,7 @@ import time
 
 import soundfile as sf
 
-from qwen_asr import Qwen3ASRModel
+from qwen_asr import VLLMInferencer
 
 
 def load_audio_from_url(url: str):
@@ -21,7 +21,7 @@ async def main():
     audio_list = [load_audio_from_url(u) for u in urls]
     languages = ["Chinese", "Chinese"]
 
-    model = Qwen3ASRModel.LLM(
+    inferencer = VLLMInferencer.LLM(
         model="/workspace/model-bin/Qwen/Qwen3-ASR-0.6B",
         gpu_memory_utilization=0.5,
         max_model_len=4096,
@@ -30,12 +30,13 @@ async def main():
     )
 
     # 逐条调用单条推理
-    for audio, lang in zip(audio_list, languages):
+    for (audio, sample_rate), lang in zip(audio_list, languages):
         print(f"\n[stream] language={lang}")
         parts = []
         t_start = time.perf_counter()
-        async for chunk in model.transcribe_stream(
+        async for chunk in inferencer.transcribe_stream(
             audio=audio,
+            sample_rate=sample_rate,
             language=lang,  # or None for automatic language detection
         ):
             if chunk:

@@ -5,7 +5,7 @@ import warnings
 
 from qwen_asr.protos.asr import ux_speech_pb2 as qwen__asr_dot_protos_dot_asr_dot_ux__speech__pb2
 
-GRPC_GENERATED_VERSION = '1.78.0'
+GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 

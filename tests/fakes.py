@@ -124,17 +124,21 @@ class FakeModel:
     async def transcribe_stream(
         self,
         audio,
+        sample_rate: int,
         context: str = "",
         language: Optional[str] = None,
     ):
         request_id = f"request-{next(self._counter)}"
         prompt = self._build_text_prompt(context, self._normalize_force_language(language))
-        self.seen_audios.append(audio)
+        self.seen_audios.append((audio, sample_rate))
         cumulative_text = ""
         finished = False
         try:
             async for output in self.model.generate(
-                {"prompt": prompt, "multi_modal_data": {"audio": [audio]}},
+                {
+                    "prompt": prompt,
+                    "multi_modal_data": {"audio": [(audio, sample_rate)]},
+                },
                 self.sampling_params.clone(),
                 request_id=request_id,
             ):

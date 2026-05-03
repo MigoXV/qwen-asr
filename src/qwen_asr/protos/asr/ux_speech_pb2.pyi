@@ -13,10 +13,10 @@ import builtins as _builtins
 import sys
 import typing as _typing
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias as _TypeAlias
+if sys.version_info >= (3, 11):
+    from typing import TypeAlias as _TypeAlias, Never as _Never
 else:
-    from typing_extensions import TypeAlias as _TypeAlias
+    from typing_extensions import TypeAlias as _TypeAlias, Never as _Never
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -69,8 +69,11 @@ class RecognitionConfig(_message.Message):
         hotwords: _abc.Iterable[_builtins.str] | None = ...,
         hotword_bias: _builtins.float = ...,
     ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["enable_automatic_punctuation", b"enable_automatic_punctuation", "encoding", b"encoding", "hotword_bias", b"hotword_bias", "hotwords", b"hotwords", "language_code", b"language_code", "sample_rate_hertz", b"sample_rate_hertz"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___RecognitionConfig: _TypeAlias = RecognitionConfig  # noqa: Y015
 
@@ -86,8 +89,11 @@ class RecognizeResponse(_message.Message):
         *,
         results: _abc.Iterable[Global___SpeechRecognitionResult] | None = ...,
     ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["results", b"results"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___RecognizeResponse: _TypeAlias = RecognizeResponse  # noqa: Y015
 
@@ -117,6 +123,7 @@ class SpeechRecognitionResult(_message.Message):
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["alternative", b"alternative", "end_time", b"end_time", "start_time", b"start_time"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___SpeechRecognitionResult: _TypeAlias = SpeechRecognitionResult  # noqa: Y015
 
@@ -165,6 +172,7 @@ class StreamingRecognitionConfig(_message.Message):
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["config", b"config", "interim_results", b"interim_results"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___StreamingRecognitionConfig: _TypeAlias = StreamingRecognitionConfig  # noqa: Y015
 
@@ -180,8 +188,11 @@ class StreamingRecognizeResponse(_message.Message):
         *,
         results: _abc.Iterable[Global___StreamingRecognitionResult] | None = ...,
     ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["results", b"results"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___StreamingRecognizeResponse: _TypeAlias = StreamingRecognizeResponse  # noqa: Y015
 
@@ -204,26 +215,128 @@ class StreamingRecognitionResult(_message.Message):
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["alternative", b"alternative", "is_final", b"is_final"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___StreamingRecognitionResult: _TypeAlias = StreamingRecognitionResult  # noqa: Y015
+
+@_typing.final
+class SpeakerInfo(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    ID_FIELD_NUMBER: _builtins.int
+    NAME_FIELD_NUMBER: _builtins.int
+    CONFIDENCE_FIELD_NUMBER: _builtins.int
+    id: _builtins.str
+    """说话人 ID"""
+    name: _builtins.str
+    """说话人名称"""
+    confidence: _builtins.float
+    """说话人置信度"""
+    def __init__(
+        self,
+        *,
+        id: _builtins.str = ...,
+        name: _builtins.str = ...,
+        confidence: _builtins.float | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_confidence", b"_confidence", "confidence", b"confidence"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_confidence", b"_confidence", "confidence", b"confidence", "id", b"id", "name", b"name"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__confidence: _TypeAlias = _typing.Literal["confidence"]  # noqa: Y015
+    _WhichOneofArgType__confidence: _TypeAlias = _typing.Literal["_confidence", b"_confidence"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__confidence) -> _WhichOneofReturnType__confidence | None: ...
+
+Global___SpeakerInfo: _TypeAlias = SpeakerInfo  # noqa: Y015
+
+@_typing.final
+class LanguageInfo(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    CODE_FIELD_NUMBER: _builtins.int
+    CONFIDENCE_FIELD_NUMBER: _builtins.int
+    code: _builtins.str
+    """语种编码"""
+    confidence: _builtins.float
+    """语种置信度"""
+    def __init__(
+        self,
+        *,
+        code: _builtins.str = ...,
+        confidence: _builtins.float | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_confidence", b"_confidence", "confidence", b"confidence"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_confidence", b"_confidence", "code", b"code", "confidence", b"confidence"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__confidence: _TypeAlias = _typing.Literal["confidence"]  # noqa: Y015
+    _WhichOneofArgType__confidence: _TypeAlias = _typing.Literal["_confidence", b"_confidence"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__confidence) -> _WhichOneofReturnType__confidence | None: ...
+
+Global___LanguageInfo: _TypeAlias = LanguageInfo  # noqa: Y015
 
 @_typing.final
 class SpeechRecognitionAlternative(_message.Message):
     DESCRIPTOR: _descriptor.Descriptor
 
+    @_typing.final
+    class MetadataEntry(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: _builtins.int
+        VALUE_FIELD_NUMBER: _builtins.int
+        key: _builtins.str
+        value: _builtins.str
+        def __init__(
+            self,
+            *,
+            key: _builtins.str = ...,
+            value: _builtins.str = ...,
+        ) -> None: ...
+        _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+        def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["key", b"key", "value", b"value"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+        def WhichOneof(self, oneof_group: _Never) -> None: ...
+
     TRANSCRIPT_FIELD_NUMBER: _builtins.int
     WORDS_FIELD_NUMBER: _builtins.int
+    METADATA_FIELD_NUMBER: _builtins.int
+    SPEAKER_FIELD_NUMBER: _builtins.int
+    LANGUAGE_FIELD_NUMBER: _builtins.int
+    SPEAKER_CHANGED_FIELD_NUMBER: _builtins.int
+    TURN_COMPLETED_FIELD_NUMBER: _builtins.int
     transcript: _builtins.str
+    speaker_changed: _builtins.bool
+    """是否发生说话人切换"""
+    turn_completed: _builtins.bool
+    """语义/VAD 视角下，当前说话轮次是否已经完成"""
     @_builtins.property
     def words(self) -> _containers.RepeatedCompositeFieldContainer[Global___WordInfo]: ...
+    @_builtins.property
+    def metadata(self) -> _containers.ScalarMap[_builtins.str, _builtins.str]:
+        """识别结果的扩展元信息，例如性别、年龄、情感分析结果等"""
+
+    @_builtins.property
+    def speaker(self) -> Global___SpeakerInfo: ...
+    @_builtins.property
+    def language(self) -> Global___LanguageInfo: ...
     def __init__(
         self,
         *,
         transcript: _builtins.str = ...,
         words: _abc.Iterable[Global___WordInfo] | None = ...,
+        metadata: _abc.Mapping[_builtins.str, _builtins.str] | None = ...,
+        speaker: Global___SpeakerInfo | None = ...,
+        language: Global___LanguageInfo | None = ...,
+        speaker_changed: _builtins.bool = ...,
+        turn_completed: _builtins.bool = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["transcript", b"transcript", "words", b"words"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["language", b"language", "speaker", b"speaker"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["language", b"language", "metadata", b"metadata", "speaker", b"speaker", "speaker_changed", b"speaker_changed", "transcript", b"transcript", "turn_completed", b"turn_completed", "words", b"words"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___SpeechRecognitionAlternative: _TypeAlias = SpeechRecognitionAlternative  # noqa: Y015
 
@@ -250,5 +363,6 @@ class WordInfo(_message.Message):
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["end_time", b"end_time", "start_time", b"start_time", "word", b"word"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___WordInfo: _TypeAlias = WordInfo  # noqa: Y015

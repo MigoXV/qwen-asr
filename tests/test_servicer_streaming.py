@@ -12,6 +12,7 @@ from qwen_asr.protos.asr.ux_speech_pb2 import (
     StreamingRecognitionConfig,
     StreamingRecognizeRequest,
 )
+from qwen_asr.inferencers.grpc_inferencer import GrpcInferencer
 from qwen_asr.servicer.servicer import ASRServicer
 
 from tests.fakes import FakeAbortError, FakeContext, FakeLLM, FakeModel
@@ -35,6 +36,7 @@ def make_requests(
     language: str,
     interim_results: bool = True,
     audio_bytes: bytes | None = None,
+    hotwords: list[str] | None = None,
     extra_requests: list[StreamingRecognizeRequest] | None = None,
 ):
     requests = [
@@ -44,6 +46,7 @@ def make_requests(
                     encoding=RecognitionConfig.LINEAR16,
                     sample_rate_hertz=16000,
                     language_code=language,
+                    hotwords=hotwords or [],
                 ),
                 interim_results=interim_results,
             )
@@ -67,12 +70,28 @@ def collect_transcripts(responses):
     return [response.results[0].alternative.transcript for response in responses]
 
 
+def make_servicer(model):
+    return make_servicer_with_context(model, "")
+
+
+def make_servicer_with_context(model, system_context: str):
+    original_load_inferencer = ASRServicer._load_inferencer
+    ASRServicer._load_inferencer = staticmethod(
+        lambda config: GrpcInferencer(inferencer=model)
+    )
+    try:
+        config = type("FakeConfig", (), {"context": system_context})()
+        return ASRServicer(config=config)
+    finally:
+        ASRServicer._load_inferencer = original_load_inferencer
+
+
 class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
     async def test_interim_and_final_results_follow_stream_events(self):
         scripts = {
             "|Chinese": [("你", False), ("你好", True)],
         }
-        servicer = ASRServicer(
+        servicer = make_servicer(
             FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
         )
         try:
@@ -97,7 +116,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
         scripts = {
             "|English": [("hel", False), ("hello", True)],
         }
-        servicer = ASRServicer(
+        servicer = make_servicer(
             FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
         )
         try:
@@ -123,7 +142,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
                 ("language Chinese<asr_text>你好", True),
             ],
         }
-        servicer = ASRServicer(
+        servicer = make_servicer(
             FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
         )
         try:
@@ -154,7 +173,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
                 ("language None<asr_text>la la", True),
             ],
         }
-        servicer = ASRServicer(
+        servicer = make_servicer(
             FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
         )
         try:
@@ -183,7 +202,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
             script_factory=lambda inp: scripts[inp["prompt"]],
             step_delay=0.02,
         )
-        servicer = ASRServicer(FakeModel(llm))
+        servicer = make_servicer(FakeModel(llm))
         context = FakeContext()
         try:
             stream = servicer.StreamingRecognize(
@@ -214,7 +233,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
             "|Chinese": [("你", False), ("你好", True)],
             "|English": [("he", False), ("hello", True)],
         }
-        servicer = ASRServicer(
+        servicer = make_servicer(
             FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
         )
         try:
@@ -240,8 +259,98 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
         finally:
             servicer.close()
 
+    async def test_hotwords_are_joined_as_session_context(self):
+        scripts = {
+            "foo bar|Chinese": [("命中", True)],
+        }
+        servicer = make_servicer(
+            FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
+        )
+        try:
+            responses = await collect_responses(
+                servicer.StreamingRecognize(
+                    make_requests(
+                        "Chinese",
+                        audio_bytes=(100).to_bytes(2, "little", signed=True),
+                        hotwords=["foo", "bar"],
+                    ),
+                    FakeContext(),
+                )
+            )
+            self.assertEqual(collect_transcripts(responses), ["命中", "命中"])
+        finally:
+            servicer.close()
+
+    async def test_system_context_is_used_when_hotwords_are_empty(self):
+        scripts = {
+            "system prompt|Chinese": [("系统", True)],
+        }
+        servicer = make_servicer_with_context(
+            FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]])),
+            "system prompt",
+        )
+        try:
+            responses = await collect_responses(
+                servicer.StreamingRecognize(
+                    make_requests(
+                        "Chinese",
+                        audio_bytes=(100).to_bytes(2, "little", signed=True),
+                    ),
+                    FakeContext(),
+                )
+            )
+            self.assertEqual(collect_transcripts(responses), ["系统", "系统"])
+        finally:
+            servicer.close()
+
+    async def test_hotwords_override_system_context(self):
+        scripts = {
+            "session term|Chinese": [("会话", True)],
+        }
+        servicer = make_servicer_with_context(
+            FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]])),
+            "system prompt",
+        )
+        try:
+            responses = await collect_responses(
+                servicer.StreamingRecognize(
+                    make_requests(
+                        "Chinese",
+                        audio_bytes=(100).to_bytes(2, "little", signed=True),
+                        hotwords=["session", "term"],
+                    ),
+                    FakeContext(),
+                )
+            )
+            self.assertEqual(collect_transcripts(responses), ["会话", "会话"])
+        finally:
+            servicer.close()
+
+    async def test_blank_hotwords_are_ignored(self):
+        scripts = {
+            "foo bar|Chinese": [("过滤", True)],
+        }
+        servicer = make_servicer_with_context(
+            FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]])),
+            "system prompt",
+        )
+        try:
+            responses = await collect_responses(
+                servicer.StreamingRecognize(
+                    make_requests(
+                        "Chinese",
+                        audio_bytes=(100).to_bytes(2, "little", signed=True),
+                        hotwords=["", " foo ", "  ", "bar"],
+                    ),
+                    FakeContext(),
+                )
+            )
+            self.assertEqual(collect_transcripts(responses), ["过滤", "过滤"])
+        finally:
+            servicer.close()
+
     async def test_first_message_must_be_streaming_config(self):
-        servicer = ASRServicer(FakeModel(FakeLLM()))
+        servicer = make_servicer(FakeModel(FakeLLM()))
         try:
             with self.assertRaises(FakeAbortError) as exc_info:
                 await collect_responses(
@@ -263,7 +372,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
             servicer.close()
 
     async def test_second_message_must_be_audio_content(self):
-        servicer = ASRServicer(FakeModel(FakeLLM()))
+        servicer = make_servicer(FakeModel(FakeLLM()))
         try:
             with self.assertRaises(FakeAbortError) as exc_info:
                 await collect_responses(
@@ -277,7 +386,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
             servicer.close()
 
     async def test_multiple_audio_messages_are_rejected(self):
-        servicer = ASRServicer(FakeModel(FakeLLM()))
+        servicer = make_servicer(FakeModel(FakeLLM()))
         try:
             with self.assertRaises(FakeAbortError) as exc_info:
                 await collect_responses(
@@ -305,7 +414,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
             "|Chinese": [("你", True)],
         }
         model = FakeModel(FakeLLM(script_factory=lambda inp: scripts[inp["prompt"]]))
-        servicer = ASRServicer(model)
+        servicer = make_servicer(model)
         riff_audio = b"RIFF" + (b"\x00" * 40) + (123).to_bytes(
             2, "little", signed=True
         )

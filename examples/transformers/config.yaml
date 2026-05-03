@@ -1,0 +1,15 @@
+model: /model-bin/Qwen/Qwen3-ASR-0.6B
+backend: transformers
+context: "这是一段系统级 ASR 提示词，可包含领域、场景、专有名词识别要求。"
+
+server:
+  port: 50051
+
+generation:
+  max_new_tokens: 64
+
+device:
+  mode: cpu
+
+vllm: null
+transformers: {}

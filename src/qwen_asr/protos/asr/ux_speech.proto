@@ -74,9 +74,25 @@ message StreamingRecognitionResult{
   
 }
 
+message SpeakerInfo {
+  string id = 1; // 说话人 ID
+  string name = 2; // 说话人名称
+  optional float confidence = 3; // 说话人置信度
+}
+
+message LanguageInfo {
+  string code = 1; // 语种编码
+  optional float confidence = 2; // 语种置信度
+}
+
 message SpeechRecognitionAlternative {
   string transcript = 1;
   repeated WordInfo words = 2;
+  map <string,string> metadata = 3; // 识别结果的扩展元信息，例如性别、年龄、情感分析结果等
+  SpeakerInfo speaker = 4;
+  LanguageInfo language = 5;
+  bool speaker_changed = 6; // 是否发生说话人切换
+  bool turn_completed = 7; // 语义/VAD 视角下，当前说话轮次是否已经完成
 }
 
 message WordInfo {
