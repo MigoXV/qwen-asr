@@ -71,12 +71,10 @@ class ConfigLoadingTest(unittest.TestCase):
             """
             model: /models/qwen3-asr
             backend: vllm
-            server:
-              port: 50052
+            server_port: 50052
             generation:
               max_new_tokens: 512
-            device:
-              mode: cpu
+            device: cpu
             vllm:
               gpu_memory_utilization: 0.5
               max_model_len: 1024
@@ -89,9 +87,9 @@ class ConfigLoadingTest(unittest.TestCase):
 
         self.assertEqual(config.model, "/models/qwen3-asr")
         self.assertEqual(config.backend, "vllm")
-        self.assertEqual(config.server.port, 50052)
+        self.assertEqual(config.server_port, 50052)
         self.assertEqual(config.generation.max_new_tokens, 512)
-        self.assertEqual(config.device.mode, "cpu")
+        self.assertEqual(config.device, "cpu")
         self.assertIsNotNone(config.vllm)
         self.assertEqual(config.vllm.max_model_len, 1024)
         self.assertTrue(config.vllm.enforce_eager)
@@ -102,8 +100,7 @@ class ConfigLoadingTest(unittest.TestCase):
             model: /models/qwen3-asr
             backend: transformers
             context: domain prompt
-            device:
-              mode: cpu
+            device: cpu
             vllm: null
             transformers: {}
             """
@@ -175,18 +172,18 @@ class ConfigLoadingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Invalid BACKEND value"):
             self._load_config_via_serve(path)
 
-    def test_invalid_device_fails_clearly(self):
+    def test_device_is_not_normalized_or_validated(self):
         path = self._write_config(
             """
             model: /models/qwen3-asr
             backend: vllm
-            device:
-              mode: tpu
+            device: cuda1
             """
         )
 
-        with self.assertRaisesRegex(ValueError, "Invalid DEVICE value"):
-            self._load_config_via_serve(path)
+        config = self._load_config_via_serve(path)
+
+        self.assertEqual(config.device, "cuda1")
 
 
 if __name__ == "__main__":

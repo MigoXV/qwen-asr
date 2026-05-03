@@ -87,10 +87,7 @@ class TransformersInferencer:
             sampling_rate=sample_rate,
             return_tensors="pt",
         )
-        inputs = {
-            k: v.to(self.model.device) if hasattr(v, "to") else v
-            for k, v in inputs.items()
-        }
+        inputs = self._prepare_model_inputs(inputs)
         streamer = TextIteratorStreamer(
             self.processor.tokenizer,
             skip_prompt=True,
@@ -158,3 +155,20 @@ class TransformersInferencer:
             f"{type(output).__name__}. Expected a tensor or an object with a "
             "'sequences' tensor attribute."
         )
+
+    def _prepare_model_inputs(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        model_device = self.model.device
+        model_dtype = getattr(self.model, "dtype", None)
+
+        prepared = {}
+        for key, value in inputs.items():
+            if not hasattr(value, "to"):
+                prepared[key] = value
+                continue
+
+            if isinstance(value, torch.Tensor) and value.is_floating_point():
+                prepared[key] = value.to(device=model_device, dtype=model_dtype)
+            else:
+                prepared[key] = value.to(model_device)
+
+        return prepared

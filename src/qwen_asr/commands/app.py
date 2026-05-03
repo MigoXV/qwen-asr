@@ -36,9 +36,9 @@ async def run_server(config: AppConfig) -> None:
     server = grpc.aio.server()
     servicer = ASRServicer(config)
     add_UxSpeechServicer_to_server(servicer, server)
-    server.add_insecure_port(f"[::]:{config.server.port}")
+    server.add_insecure_port(f"[::]:{config.server_port}")
     await server.start()
-    logger.info("gRPC server listening on port %d", config.server.port)
+    logger.info("gRPC server listening on port %d", config.server_port)
 
     try:
         await server.wait_for_termination()

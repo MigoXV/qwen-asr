@@ -16,7 +16,6 @@ src_path = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(src_path))
 from qwen_asr.configs import (  # noqa: E402
     AppConfig,
-    DeviceConfig,
     GenerationConfig,
     VLLMConfig,
 )
@@ -27,7 +26,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
         config = AppConfig(
             model="/tmp/model",
             generation=GenerationConfig(max_new_tokens=512),
-            device=DeviceConfig(mode="cpu"),
+            device="cpu",
             vllm=VLLMConfig(gpu_memory_utilization=0.5, max_model_len=4096),
         )
         kwargs = command_utils.build_vllm_kwargs(config)
@@ -38,7 +37,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
         config = AppConfig(
             model="/tmp/model",
             generation=GenerationConfig(max_new_tokens=512),
-            device=DeviceConfig(mode="cpu"),
+            device="cpu",
             vllm=VLLMConfig(gpu_memory_utilization=0.5, max_model_len=4096),
         )
         kwargs = command_utils.build_vllm_kwargs(config)
@@ -49,7 +48,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
         config = AppConfig(
             model="/tmp/model",
             generation=GenerationConfig(max_new_tokens=512),
-            device=DeviceConfig(mode="cpu"),
+            device="cpu",
             vllm=VLLMConfig(
                 gpu_memory_utilization=0.5,
                 max_model_len=4096,
@@ -64,7 +63,7 @@ class AppDeviceSelectionTest(unittest.TestCase):
         config = AppConfig(
             model="/tmp/model",
             generation=GenerationConfig(max_new_tokens=512),
-            device=DeviceConfig(mode="cpu"),
+            device="cpu",
             vllm=VLLMConfig(
                 gpu_memory_utilization=0.5,
                 max_model_len=4096,
@@ -76,14 +75,16 @@ class AppDeviceSelectionTest(unittest.TestCase):
         self.assertEqual(kwargs["device"], "cpu")
         self.assertTrue(kwargs["enforce_eager"])
 
-    def test_invalid_device_fails_clearly(self):
-        with self.assertRaisesRegex(ValueError, "Invalid DEVICE value"):
-            AppConfig(
-                model="/tmp/model",
-                generation=GenerationConfig(max_new_tokens=512),
-                device=DeviceConfig(mode="tpu"),
-                vllm=VLLMConfig(gpu_memory_utilization=0.5, max_model_len=4096),
-            )
+    def test_device_is_passed_through_without_normalization(self):
+        config = AppConfig(
+            model="/tmp/model",
+            generation=GenerationConfig(max_new_tokens=512),
+            device="cuda1",
+            vllm=VLLMConfig(gpu_memory_utilization=0.5, max_model_len=4096),
+        )
+        kwargs = command_utils.build_vllm_kwargs(config)
+
+        self.assertEqual(kwargs["device"], "cuda1")
 
 
 if __name__ == "__main__":

@@ -10,37 +10,13 @@ from qwen_asr.configs.constants import (
     BACKEND_CHOICES,
     BACKEND_TRANSFORMERS,
     BACKEND_VLLM,
-    DEVICE_CHOICES,
     DEVICE_CPU,
 )
 
 
 @dataclass
-class ServerConfig:
-    port: int = 50051
-
-
-@dataclass
 class GenerationConfig:
     max_new_tokens: int = 4096
-
-
-@dataclass
-class DeviceConfig:
-    mode: str = DEVICE_CPU
-
-    def __post_init__(self) -> None:
-        self.mode = self.normalize_mode(self.mode)
-
-    @staticmethod
-    def normalize_mode(mode: str) -> str:
-        normalized = (mode or DEVICE_CPU).strip().lower()
-        if normalized not in DEVICE_CHOICES:
-            choices = ", ".join(sorted(DEVICE_CHOICES))
-            raise ValueError(
-                f"Invalid DEVICE value '{mode}'. Expected one of: {choices}."
-            )
-        return normalized
 
 
 @dataclass
@@ -60,9 +36,9 @@ class AppConfig:
     model: str = MISSING
     backend: str = BACKEND_VLLM
     context: str = ""
-    server: ServerConfig = field(default_factory=ServerConfig)
+    server_port: int = 50051
     generation: GenerationConfig = field(default_factory=GenerationConfig)
-    device: DeviceConfig = field(default_factory=DeviceConfig)
+    device: str = DEVICE_CPU
     vllm: Optional[VLLMConfig] = None
     transformers: Optional[TransformersConfig] = None
 

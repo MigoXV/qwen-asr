@@ -1,0 +1,16 @@
+model: /model-bin/Qwen/Qwen3-ASR-0.6B
+backend: vllm
+context: "侧室"
+server_port: 50051
+
+generation:
+  max_new_tokens: 64
+
+device: cuda
+
+vllm:
+  gpu_memory_utilization: 0.5
+  max_model_len: 4096
+  enforce_eager: false
+
+transformers: null
