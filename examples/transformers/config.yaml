@@ -1,0 +1,12 @@
+model: /model-bin/Qwen/Qwen3-ASR-0.6B
+backend: transformers
+context: "侧室侧室，启动侧室"
+server_port: 50051
+
+generation:
+  max_new_tokens: 64
+
+device: cpu
+
+vllm: null
+transformers: null

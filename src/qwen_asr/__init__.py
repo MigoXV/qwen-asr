@@ -18,14 +18,22 @@ qwen_asr: Qwen3-ASR package.
 """
 
 try:
-    from .inference.utils import parse_asr_output
+    from .inferencers.text.asr_output import parse_asr_output
 except ImportError:  # pragma: no cover - optional during lightweight tests
     parse_asr_output = None
 
 try:
-    from .inference.qwen3_asr import ASRTranscription, Qwen3ASRModel
+    from .inferencers.vllm import VLLMInferencer
 except ImportError:  # pragma: no cover - optional during lightweight tests
-    ASRTranscription = None
-    Qwen3ASRModel = None
+    VLLMInferencer = None
 
-__all__ = ["ASRTranscription", "Qwen3ASRModel", "parse_asr_output"]
+try:
+    from .inferencers.transformers import TransformersInferencer
+except ImportError:  # pragma: no cover - optional during lightweight tests
+    TransformersInferencer = None
+
+__all__ = [
+    "TransformersInferencer",
+    "VLLMInferencer",
+    "parse_asr_output",
+]

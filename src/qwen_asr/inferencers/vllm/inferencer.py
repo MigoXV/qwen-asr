@@ -13,13 +13,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import asyncio
 import inspect
 import logging
-from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, List, Optional
+from collections.abc import AsyncIterator
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import numpy as np
 from transformers import AutoConfig, AutoProcessor
 from vllm import ModelRegistry, SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
@@ -31,13 +34,8 @@ from qwen_asr.core.vllm_backend import (
     Qwen3ASRForConditionalGeneration,
     Qwen3ASRProcessor,
 )
-
-from .utils import (
-    AudioLike,
-    normalize_audio_input,
-    parse_asr_output,
-    resolve_language_code,
-)
+from qwen_asr.inferencers.language import resolve_language_code
+from qwen_asr.inferencers.vllm.utils import filter_async_engine_kwargs
 
 AutoConfig.register("qwen3_asr", Qwen3ASRConfig, exist_ok=True)
 AutoProcessor.register(Qwen3ASRConfig, Qwen3ASRProcessor, exist_ok=True)
@@ -49,20 +47,14 @@ ModelRegistry.register_model(
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ASRTranscription:
-    language: str
-    text: str
-
-
-class Qwen3ASRModel:
+class VLLMInferencer:
     """
-    Unified inference wrapper for Qwen3-ASR with vLLM backend only.
+    Qwen3-ASR 的 vLLM 后端推理器。
 
-    Notes:
-      - Each request uses a context text and exactly one audio.
-      - If language is provided, the prompt will force the output to be text-only by appending
-        "language {Language}<asr_text>" to the assistant prompt.
+    说明：
+      - 每个请求使用一段上下文文本和一段音频。
+      - 如果传入 language，会在 assistant prompt 后追加
+        "language {Language}<asr_text>"，要求模型只输出识别文本。
     """
 
     def __init__(
@@ -81,10 +73,13 @@ class Qwen3ASRModel:
         model: str,
         max_new_tokens: Optional[int] = 4096,
         **kwargs,
-    ) -> "Qwen3ASRModel":
+    ) -> "VLLMInferencer":
+        # 只透传 AsyncEngineArgs 支持的 vLLM 参数。
+        engine_kwargs = filter_async_engine_kwargs(AsyncEngineArgs, kwargs)
         llm = AsyncLLMEngine.from_engine_args(
-            AsyncEngineArgs(model=model, **kwargs)
+            AsyncEngineArgs(model=model, **engine_kwargs)
         )
+        # processor 负责构造 Qwen3-ASR 的多模态输入。
         processor = Qwen3ASRProcessor.from_pretrained(model, fix_mistral_regex=True)
         sampling_params = SamplingParams(
             **({"temperature": 0.0, "max_tokens": max_new_tokens})
@@ -95,26 +90,10 @@ class Qwen3ASRModel:
             sampling_params=sampling_params,
         )
 
-    async def transcribe(
-        self,
-        audio: AudioLike,
-        context: str = "",
-        language: Optional[str] = None,
-    ) -> ASRTranscription:
-        force_lang = self._normalize_force_language(language)
-        raw_text_parts: List[str] = []
-        async for chunk in self.transcribe_stream(
-            audio=audio,
-            context=context,
-            language=force_lang,
-        ):
-            raw_text_parts.append(chunk)
-        lang, text = parse_asr_output("".join(raw_text_parts), user_language=force_lang)
-        return ASRTranscription(language=lang, text=text)
-
     async def transcribe_stream(
         self,
-        audio: AudioLike,
+        audio: np.ndarray,
+        sample_rate: int,
         context: str = "",
         language: Optional[str] = None,
     ) -> AsyncIterator[str]:
@@ -124,13 +103,11 @@ class Qwen3ASRModel:
         说明：
           - 输入音频仅按单块处理，不再做内部切块。
           - 输出为模型原始生成的增量文本片段；可通过拼接所有片段得到完整 raw 输出。
-          - 若希望得到最终 language/text，可将所有片段拼接后使用 parse_asr_output 解析，
-            或直接调用 transcribe()。
+          - 若希望得到最终 language/text，请在适配层使用文本后处理工具解析。
         """
-        wav = normalize_audio_input(audio)
         force_lang = self._normalize_force_language(language)
         prompt = self._build_text_prompt(context=context, force_language=force_lang)
-        inp = {"prompt": prompt, "multi_modal_data": {"audio": [wav]}}
+        inp = {"prompt": prompt, "multi_modal_data": {"audio": [(audio, sample_rate)]}}
         async for chunk in self._stream_generate_single(inp):
             yield chunk
 
@@ -153,10 +130,10 @@ class Qwen3ASRModel:
 
     def _build_text_prompt(self, context: str, force_language: Optional[str]) -> str:
         """
-        Build the string prompt for one request.
+        构造单次请求使用的字符串 prompt。
 
-        If force_language is provided, "language X<asr_text>" is appended after the generation prompt
-        to request text-only output.
+        如果提供 force_language，会在生成提示后追加 "language X<asr_text>"，
+        要求模型只输出 ASR 文本。
         """
         msgs = self._build_messages(context=context, audio_payload="")
         base = self.processor.apply_chat_template(
@@ -167,6 +144,7 @@ class Qwen3ASRModel:
         return base
 
     async def _abort_request(self, request_id: str) -> None:
+        # 兼容不同 vLLM 版本的 abort 调用签名。
         abort = getattr(self.model, "abort", None)
         if abort is None:
             return
@@ -180,6 +158,7 @@ class Qwen3ASRModel:
     async def _stream_generate_single(
         self, inp: Dict[str, Any]
     ) -> AsyncIterator[str]:
+        # 每个请求使用独立 ID，方便取消时精确 abort。
         request_id = uuid4().hex
         sampling_params = (
             self.sampling_params.clone()
@@ -190,6 +169,7 @@ class Qwen3ASRModel:
         cumulative_text = ""
         finished = False
         try:
+            # vLLM 可能返回累计文本，这里统一转换为增量片段。
             async for out in self.model.generate(
                 inp,
                 sampling_params,

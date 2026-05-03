@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import duration_pb2 as google_dot_protobuf_dot_duration__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#qwen_asr/protos/asr/ux_speech.proto\x12\tux_speech\x1a\x1egoogle/protobuf/duration.proto\"\x90\x02\n\x11RecognitionConfig\x12<\n\x08\x65ncoding\x18\x01 \x01(\x0e\x32*.ux_speech.RecognitionConfig.AudioEncoding\x12\x19\n\x11sample_rate_hertz\x18\x02 \x01(\r\x12\x15\n\rlanguage_code\x18\x03 \x01(\t\x12$\n\x1c\x65nable_automatic_punctuation\x18\x04 \x01(\x08\x12\x10\n\x08hotwords\x18\x05 \x03(\t\x12\x14\n\x0chotword_bias\x18\x06 \x01(\x02\"=\n\rAudioEncoding\x12\x1e\n\x1a\x41UDIO_ENCODING_UNSPECIFIED\x10\x00\x12\x0c\n\x08LINEAR16\x10\x01\"H\n\x11RecognizeResponse\x12\x33\n\x07results\x18\x01 \x03(\x0b\x32\".ux_speech.SpeechRecognitionResult\"\xb3\x01\n\x17SpeechRecognitionResult\x12<\n\x0b\x61lternative\x18\x01 \x01(\x0b\x32\'.ux_speech.SpeechRecognitionAlternative\x12-\n\nstart_time\x18\x02 \x01(\x0b\x32\x19.google.protobuf.Duration\x12+\n\x08\x65nd_time\x18\x03 \x01(\x0b\x32\x19.google.protobuf.Duration\"\x8c\x01\n\x19StreamingRecognizeRequest\x12\x41\n\x10streaming_config\x18\x01 \x01(\x0b\x32%.ux_speech.StreamingRecognitionConfigH\x00\x12\x17\n\raudio_content\x18\x02 \x01(\x0cH\x00\x42\x13\n\x11streaming_request\"c\n\x1aStreamingRecognitionConfig\x12,\n\x06\x63onfig\x18\x01 \x01(\x0b\x32\x1c.ux_speech.RecognitionConfig\x12\x17\n\x0finterim_results\x18\x02 \x01(\x08\"T\n\x1aStreamingRecognizeResponse\x12\x36\n\x07results\x18\x01 \x03(\x0b\x32%.ux_speech.StreamingRecognitionResult\"l\n\x1aStreamingRecognitionResult\x12<\n\x0b\x61lternative\x18\x01 \x01(\x0b\x32\'.ux_speech.SpeechRecognitionAlternative\x12\x10\n\x08is_final\x18\x02 \x01(\x08\"V\n\x1cSpeechRecognitionAlternative\x12\x12\n\ntranscript\x18\x01 \x01(\t\x12\"\n\x05words\x18\x02 \x03(\x0b\x32\x13.ux_speech.WordInfo\"t\n\x08WordInfo\x12\x0c\n\x04word\x18\x01 \x01(\t\x12-\n\nstart_time\x18\x02 \x01(\x0b\x32\x19.google.protobuf.Duration\x12+\n\x08\x65nd_time\x18\x03 \x01(\x0b\x32\x19.google.protobuf.Duration2s\n\x08UxSpeech\x12g\n\x12StreamingRecognize\x12$.ux_speech.StreamingRecognizeRequest\x1a%.ux_speech.StreamingRecognizeResponse\"\x00(\x01\x30\x01\x42\x39\n\rcom.ux.speechB\rUxSpeechProtoP\x01Z\x17ulang.com/speech;speechb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#qwen_asr/protos/asr/ux_speech.proto\x12\tux_speech\x1a\x1egoogle/protobuf/duration.proto\"\x90\x02\n\x11RecognitionConfig\x12<\n\x08\x65ncoding\x18\x01 \x01(\x0e\x32*.ux_speech.RecognitionConfig.AudioEncoding\x12\x19\n\x11sample_rate_hertz\x18\x02 \x01(\r\x12\x15\n\rlanguage_code\x18\x03 \x01(\t\x12$\n\x1c\x65nable_automatic_punctuation\x18\x04 \x01(\x08\x12\x10\n\x08hotwords\x18\x05 \x03(\t\x12\x14\n\x0chotword_bias\x18\x06 \x01(\x02\"=\n\rAudioEncoding\x12\x1e\n\x1a\x41UDIO_ENCODING_UNSPECIFIED\x10\x00\x12\x0c\n\x08LINEAR16\x10\x01\"H\n\x11RecognizeResponse\x12\x33\n\x07results\x18\x01 \x03(\x0b\x32\".ux_speech.SpeechRecognitionResult\"\xb3\x01\n\x17SpeechRecognitionResult\x12<\n\x0b\x61lternative\x18\x01 \x01(\x0b\x32\'.ux_speech.SpeechRecognitionAlternative\x12-\n\nstart_time\x18\x02 \x01(\x0b\x32\x19.google.protobuf.Duration\x12+\n\x08\x65nd_time\x18\x03 \x01(\x0b\x32\x19.google.protobuf.Duration\"\x8c\x01\n\x19StreamingRecognizeRequest\x12\x41\n\x10streaming_config\x18\x01 \x01(\x0b\x32%.ux_speech.StreamingRecognitionConfigH\x00\x12\x17\n\raudio_content\x18\x02 \x01(\x0cH\x00\x42\x13\n\x11streaming_request\"c\n\x1aStreamingRecognitionConfig\x12,\n\x06\x63onfig\x18\x01 \x01(\x0b\x32\x1c.ux_speech.RecognitionConfig\x12\x17\n\x0finterim_results\x18\x02 \x01(\x08\"T\n\x1aStreamingRecognizeResponse\x12\x36\n\x07results\x18\x01 \x03(\x0b\x32%.ux_speech.StreamingRecognitionResult\"l\n\x1aStreamingRecognitionResult\x12<\n\x0b\x61lternative\x18\x01 \x01(\x0b\x32\'.ux_speech.SpeechRecognitionAlternative\x12\x10\n\x08is_final\x18\x02 \x01(\x08\"O\n\x0bSpeakerInfo\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x17\n\nconfidence\x18\x03 \x01(\x02H\x00\x88\x01\x01\x42\r\n\x0b_confidence\"D\n\x0cLanguageInfo\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x17\n\nconfidence\x18\x02 \x01(\x02H\x00\x88\x01\x01\x42\r\n\x0b_confidence\"\xd5\x02\n\x1cSpeechRecognitionAlternative\x12\x12\n\ntranscript\x18\x01 \x01(\t\x12\"\n\x05words\x18\x02 \x03(\x0b\x32\x13.ux_speech.WordInfo\x12G\n\x08metadata\x18\x03 \x03(\x0b\x32\x35.ux_speech.SpeechRecognitionAlternative.MetadataEntry\x12\'\n\x07speaker\x18\x04 \x01(\x0b\x32\x16.ux_speech.SpeakerInfo\x12)\n\x08language\x18\x05 \x01(\x0b\x32\x17.ux_speech.LanguageInfo\x12\x17\n\x0fspeaker_changed\x18\x06 \x01(\x08\x12\x16\n\x0eturn_completed\x18\x07 \x01(\x08\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"t\n\x08WordInfo\x12\x0c\n\x04word\x18\x01 \x01(\t\x12-\n\nstart_time\x18\x02 \x01(\x0b\x32\x19.google.protobuf.Duration\x12+\n\x08\x65nd_time\x18\x03 \x01(\x0b\x32\x19.google.protobuf.Duration2s\n\x08UxSpeech\x12g\n\x12StreamingRecognize\x12$.ux_speech.StreamingRecognizeRequest\x1a%.ux_speech.StreamingRecognizeResponse\"\x00(\x01\x30\x01\x42\x39\n\rcom.ux.speechB\rUxSpeechProtoP\x01Z\x17ulang.com/speech;speechb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,6 +33,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'qwen_asr.protos.asr.ux_spee
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\n\rcom.ux.speechB\rUxSpeechProtoP\001Z\027ulang.com/speech;speech'
+  _globals['_SPEECHRECOGNITIONALTERNATIVE_METADATAENTRY']._loaded_options = None
+  _globals['_SPEECHRECOGNITIONALTERNATIVE_METADATAENTRY']._serialized_options = b'8\001'
   _globals['_RECOGNITIONCONFIG']._serialized_start=83
   _globals['_RECOGNITIONCONFIG']._serialized_end=355
   _globals['_RECOGNITIONCONFIG_AUDIOENCODING']._serialized_start=294
@@ -49,10 +51,16 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_STREAMINGRECOGNIZERESPONSE']._serialized_end=941
   _globals['_STREAMINGRECOGNITIONRESULT']._serialized_start=943
   _globals['_STREAMINGRECOGNITIONRESULT']._serialized_end=1051
-  _globals['_SPEECHRECOGNITIONALTERNATIVE']._serialized_start=1053
-  _globals['_SPEECHRECOGNITIONALTERNATIVE']._serialized_end=1139
-  _globals['_WORDINFO']._serialized_start=1141
-  _globals['_WORDINFO']._serialized_end=1257
-  _globals['_UXSPEECH']._serialized_start=1259
-  _globals['_UXSPEECH']._serialized_end=1374
+  _globals['_SPEAKERINFO']._serialized_start=1053
+  _globals['_SPEAKERINFO']._serialized_end=1132
+  _globals['_LANGUAGEINFO']._serialized_start=1134
+  _globals['_LANGUAGEINFO']._serialized_end=1202
+  _globals['_SPEECHRECOGNITIONALTERNATIVE']._serialized_start=1205
+  _globals['_SPEECHRECOGNITIONALTERNATIVE']._serialized_end=1546
+  _globals['_SPEECHRECOGNITIONALTERNATIVE_METADATAENTRY']._serialized_start=1499
+  _globals['_SPEECHRECOGNITIONALTERNATIVE_METADATAENTRY']._serialized_end=1546
+  _globals['_WORDINFO']._serialized_start=1548
+  _globals['_WORDINFO']._serialized_end=1664
+  _globals['_UXSPEECH']._serialized_start=1666
+  _globals['_UXSPEECH']._serialized_end=1781
 # @@protoc_insertion_point(module_scope)
