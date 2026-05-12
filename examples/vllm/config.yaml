@@ -1,16 +1,16 @@
-model: /model-bin/Qwen/Qwen3-ASR-0.6B
-backend: vllm
-context: "侧室"
-server_port: 50051
+model: ${oc.env:MODEL_PATH}
+backend: ${oc.env:QWEN_ASR_BACKEND}
+context: ${oc.env:QWEN_ASR_CONTEXT}
+server_port: ${oc.env:QWEN_ASR_SERVER_PORT}
 
 generation:
-  max_new_tokens: 64
+  max_new_tokens: ${oc.env:QWEN_ASR_MAX_NEW_TOKENS}
 
-device: cuda
+device: ${oc.env:QWEN_ASR_DEVICE}
 
 vllm:
-  gpu_memory_utilization: 0.5
-  max_model_len: 4096
-  enforce_eager: false
+  gpu_memory_utilization: ${oc.env:QWEN_ASR_VLLM_GPU_MEMORY_UTILIZATION}
+  max_model_len: ${oc.env:QWEN_ASR_VLLM_MAX_MODEL_LEN}
+  enforce_eager: ${oc.env:QWEN_ASR_VLLM_ENFORCE_EAGER}
 
 transformers: null
