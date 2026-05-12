@@ -1,12 +1,12 @@
 model: ${oc.env:MODEL_PATH}
-backend: ${oc.env:QWEN_ASR_BACKEND}
-context: ${oc.env:QWEN_ASR_CONTEXT}
-server_port: ${oc.env:QWEN_ASR_SERVER_PORT}
+backend: transformers
+context: ${oc.env:QWEN_ASR_CONTEXT,""}
+server_port: ${oc.env:QWEN_ASR_SERVER_PORT,50051}
 
 generation:
-  max_new_tokens: ${oc.env:QWEN_ASR_MAX_NEW_TOKENS}
+  max_new_tokens: ${oc.env:QWEN_ASR_MAX_NEW_TOKENS,4096}
 
-device: ${oc.env:QWEN_ASR_DEVICE}
+device: ${oc.env:QWEN_ASR_DEVICE,cpu}
 
 vllm: null
 transformers: null
