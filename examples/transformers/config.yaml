@@ -1,12 +1,12 @@
-model: /model-bin/Qwen/Qwen3-ASR-0.6B
+model: ${oc.env:MODEL_PATH}
 backend: transformers
-context: "侧室侧室，启动侧室"
-server_port: 50051
+context: ${oc.env:QWEN_ASR_CONTEXT,""}
+server_port: ${oc.env:QWEN_ASR_SERVER_PORT,50051}
 
 generation:
-  max_new_tokens: 64
+  max_new_tokens: ${oc.env:QWEN_ASR_MAX_NEW_TOKENS,4096}
 
-device: cpu
+device: ${oc.env:QWEN_ASR_DEVICE,cpu}
 
 vllm: null
 transformers: null
