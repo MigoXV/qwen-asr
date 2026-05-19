@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from threading import Thread
 from typing import Any, AsyncIterator, Optional
 
@@ -21,11 +22,23 @@ from qwen_asr.core.transformers_backend import (
 )
 from qwen_asr.inferencers.language import resolve_language_code
 
+logger = logging.getLogger(__name__)
+
 AutoConfig.register("qwen3_asr", Qwen3ASRConfig, exist_ok=True)
 AutoProcessor.register(Qwen3ASRConfig, Qwen3ASRProcessor, exist_ok=True)
 AutoModelForCausalLM.register(
     Qwen3ASRConfig, Qwen3ASRForConditionalGeneration, exist_ok=True
 )
+
+
+try:
+    torch.npu.set_compile_mode(jit_compile=False)
+    logger.info("NPU jit compile mode set to False.")
+except AttributeError:
+    logger.info("NPU acceleration is unavailable.")
+except Exception as e:
+    logger.error(f"Failed to set NPU jit compile mode: {e}")
+    raise e
 
 
 class TransformersInferencer:
