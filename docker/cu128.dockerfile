@@ -3,6 +3,8 @@ FROM registry.cn-hangzhou.aliyuncs.com/migo-dl/vllm:0.14.1a1-torch291-cu128
 # 设置工作目录
 WORKDIR /app
 
+ENV QWEN_ASR_DEVICE=cuda
+
 # 拷贝必要的文件以安装依赖
 COPY pyproject.toml poetry.lock README.md ./
 RUN mkdir -p src/qwen_asr && \
@@ -19,4 +21,4 @@ RUN poetry install
 EXPOSE 50051
 
 # 默认入口
-CMD ["poetry", "run", "python", "-m", "qwen_asr.commands.app"]
+CMD ["poetry", "run", "python", "-m", "qwen_asr.commands.app", "vllm"]

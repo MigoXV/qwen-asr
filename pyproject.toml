@@ -15,8 +15,13 @@ dependencies = [
 "grpcio (>=1.78.0,<2.0.0)",
 "protobuf (>=6.33.5,<7.0.0)",
 "typer (>=0.24.0,<0.25.0)",
-"omegaconf (>=2.3.0,<3.0.0)",
 ]
+
+[project.scripts]
+qwen-asr = "qwen_asr.commands.app:app"
+
+[project.entry-points."vllm.general_plugins"]
+qwen_asr = "qwen_asr.inferencers.vllm.plugin:register_qwen_asr"
 
 [tool.poetry]
 packages = [{include = "qwen_asr", from = "src"}]

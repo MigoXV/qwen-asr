@@ -19,30 +19,21 @@ import asyncio
 import inspect
 import logging
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import numpy as np
-from transformers import AutoConfig, AutoProcessor
-from vllm import ModelRegistry, SamplingParams
+from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.sampling_params import RequestOutputKind
 
-from qwen_asr.core.vllm_backend import (
-    Qwen3ASRConfig,
-    Qwen3ASRForConditionalGeneration,
+from qwen_asr.core.transformers_backend.processing_qwen3_asr import (
     Qwen3ASRProcessor,
 )
 from qwen_asr.inferencers.language import resolve_language_code
 from qwen_asr.inferencers.vllm.utils import filter_async_engine_kwargs
-
-AutoConfig.register("qwen3_asr", Qwen3ASRConfig, exist_ok=True)
-AutoProcessor.register(Qwen3ASRConfig, Qwen3ASRProcessor, exist_ok=True)
-
-ModelRegistry.register_model(
-    "Qwen3ASRForConditionalGeneration", Qwen3ASRForConditionalGeneration
-)
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +99,10 @@ class VLLMInferencer:
         force_lang = self._normalize_force_language(language)
         prompt = self._build_text_prompt(context=context, force_language=force_lang)
         inp = {"prompt": prompt, "multi_modal_data": {"audio": [(audio, sample_rate)]}}
-        async for chunk in self._stream_generate_single(inp):
-            yield chunk
+        stream = self._stream_generate_single(inp)
+        async with aclosing(stream):
+            async for chunk in stream:
+                yield chunk
 
     def _build_messages(self, context: str, audio_payload: Any) -> List[Dict[str, Any]]:
         return [
@@ -166,10 +159,9 @@ class VLLMInferencer:
             else self.sampling_params
         )
         sampling_params.output_kind = RequestOutputKind.DELTA
-        cumulative_text = ""
         finished = False
         try:
-            # vLLM 可能返回累计文本，这里统一转换为增量片段。
+            # DELTA 模式保证每次只返回新增文本，避免在长请求中保留累计副本。
             async for out in self.model.generate(
                 inp,
                 sampling_params,
@@ -178,17 +170,7 @@ class VLLMInferencer:
                 if not out.outputs:
                     continue
 
-                cur_text = out.outputs[0].text or ""
-                if not cur_text:
-                    continue
-
-                if cur_text.startswith(cumulative_text):
-                    delta_text = cur_text[len(cumulative_text) :]
-                    cumulative_text = cur_text
-                else:
-                    delta_text = cur_text
-                    cumulative_text = cumulative_text + cur_text
-
+                delta_text = out.outputs[0].text or ""
                 if delta_text:
                     yield delta_text
             finished = True

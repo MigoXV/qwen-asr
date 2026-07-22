@@ -22,6 +22,7 @@
 # limitations under the License.
 """Inference-only Qwen3-ASR model."""
 
+import logging
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal, cast
 
@@ -778,9 +779,13 @@ class Qwen3ASRForConditionalGeneration(
         audio_input: Qwen2_5OmniAudioFeatureInputs,
         audio_hashes: list[str] | None = None,
         cached_audio_features: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, ...]:
         input_features = audio_input["input_features"]
         audio_feature_lengths = audio_input["audio_feature_lengths"]
+        log_cuda_memory = logger.isEnabledFor(logging.DEBUG) and input_features.is_cuda
+        if log_cuda_memory:
+            allocated_before = torch.cuda.memory_allocated(input_features.device)
+            reserved_before = torch.cuda.memory_reserved(input_features.device)
 
         audio_output_lengths = _get_feat_extract_output_lengths(audio_feature_lengths)
 
@@ -789,7 +794,19 @@ class Qwen3ASRForConditionalGeneration(
             feature_lens=audio_feature_lengths,
             aftercnn_lens=audio_output_lengths,
         )
-        return audio_features.split(audio_output_lengths.tolist())
+        outputs = audio_features.split(audio_output_lengths.tolist())
+        if log_cuda_memory:
+            output_bytes = sum(item.numel() * item.element_size() for item in outputs)
+            logger.debug(
+                "Audio encoder CUDA memory: allocated %.1f -> %.1f MiB, "
+                "reserved %.1f -> %.1f MiB, cached output %.1f MiB",
+                allocated_before / 2**20,
+                torch.cuda.memory_allocated(input_features.device) / 2**20,
+                reserved_before / 2**20,
+                torch.cuda.memory_reserved(input_features.device) / 2**20,
+                output_bytes / 2**20,
+            )
+        return outputs
 
     def get_language_model(self) -> torch.nn.Module:
         return self.language_model

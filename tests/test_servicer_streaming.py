@@ -75,15 +75,10 @@ def make_servicer(model):
 
 
 def make_servicer_with_context(model, system_context: str):
-    original_load_inferencer = ASRServicer._load_inferencer
-    ASRServicer._load_inferencer = staticmethod(
-        lambda config: GrpcInferencer(inferencer=model)
+    return ASRServicer(
+        inferencer=GrpcInferencer(inferencer=model),
+        default_context=system_context,
     )
-    try:
-        config = type("FakeConfig", (), {"context": system_context})()
-        return ASRServicer(config=config)
-    finally:
-        ASRServicer._load_inferencer = original_load_inferencer
 
 
 class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
@@ -167,7 +162,7 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
         scripts = {
             "|auto": [
                 ("lang", False),
-                ("langute", False),
+                ("langu", False),
                 ("language None", False),
                 ("language None<asr_text>la", False),
                 ("language None<asr_text>la la", True),
@@ -218,13 +213,8 @@ class ASRServicerStreamingTest(unittest.IsolatedAsyncioTestCase):
             context.set_active(False)
             remaining = await collect_responses(stream)
             self.assertEqual(remaining, [])
-
-            deadline = asyncio.get_running_loop().time() + 1.0
-            while asyncio.get_running_loop().time() < deadline:
-                if llm.llm_engine.aborted_ids:
-                    break
-                await asyncio.sleep(0.01)
             self.assertEqual(len(llm.llm_engine.aborted_ids), 1)
+            self.assertEqual(llm.active_request_ids, set())
         finally:
             servicer.close()
 

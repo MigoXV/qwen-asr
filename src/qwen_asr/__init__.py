@@ -17,23 +17,27 @@
 qwen_asr: Qwen3-ASR package.
 """
 
-try:
-    from .inferencers.text.asr_output import parse_asr_output
-except ImportError:  # pragma: no cover - optional during lightweight tests
-    parse_asr_output = None
-
-try:
-    from .inferencers.vllm import VLLMInferencer
-except ImportError:  # pragma: no cover - optional during lightweight tests
-    VLLMInferencer = None
-
-try:
-    from .inferencers.transformers import TransformersInferencer
-except ImportError:  # pragma: no cover - optional during lightweight tests
-    TransformersInferencer = None
+from typing import Any
 
 __all__ = [
     "TransformersInferencer",
     "VLLMInferencer",
     "parse_asr_output",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """按需导入后端，避免 CLI 启动时加载未选择的推理框架。"""
+    if name == "parse_asr_output":
+        from .inferencers.text.asr_output import parse_asr_output
+
+        return parse_asr_output
+    if name == "VLLMInferencer":
+        from .inferencers.vllm import VLLMInferencer
+
+        return VLLMInferencer
+    if name == "TransformersInferencer":
+        from .inferencers.transformers import TransformersInferencer
+
+        return TransformersInferencer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

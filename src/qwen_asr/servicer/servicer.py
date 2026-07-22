@@ -3,13 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 
 import grpc
 
 from google.protobuf.duration_pb2 import Duration
-from qwen_asr.commands.utils import build_transformers_kwargs, build_vllm_kwargs
-from qwen_asr.configs import AppConfig
-from qwen_asr.configs.constants import BACKEND_TRANSFORMERS, BACKEND_VLLM
 from qwen_asr.inferencers.grpc_inferencer import GrpcInferencer
 from qwen_asr.protos.asr.ux_speech_pb2 import (
     SpeechRecognitionAlternative,
@@ -32,37 +30,17 @@ class ASRServicer(UxSpeechServicer):
     并将其视为完整音频。返回一次最终结果后结束 RPC。
     """
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        inferencer: GrpcInferencer,
+        default_context: str = "",
+    ) -> None:
         super().__init__()
-        self.default_context = str(getattr(config, "context", "") or "")
-        self.inferencer = self._load_inferencer(config)
+        self.default_context = default_context
+        self.inferencer = inferencer
 
     def close(self) -> None:
         return None
-
-    @staticmethod
-    def _load_inferencer(config: AppConfig) -> GrpcInferencer:
-        """按应用配置加载后端推理器。"""
-        logger.info("Loading model from %s …", config.model)
-        # transformers 后端
-        if config.backend == BACKEND_TRANSFORMERS:
-            from qwen_asr.inferencers.transformers import TransformersInferencer
-
-            inferencer = TransformersInferencer.LLM(
-                model=config.model,
-                **build_transformers_kwargs(config),
-            )
-        # vLLM 后端
-        elif config.backend == BACKEND_VLLM:
-            from qwen_asr.inferencers.vllm import VLLMInferencer
-
-            inferencer = VLLMInferencer.LLM(
-                model=config.model,
-                **build_vllm_kwargs(config),
-            )
-        else:
-            raise ValueError(f"Unsupported backend: {config.backend}")
-        return GrpcInferencer(inferencer=inferencer)
 
     async def StreamingRecognize(
         self,
@@ -89,22 +67,24 @@ class ASRServicer(UxSpeechServicer):
             hotwords=streaming_config.config.hotwords,
         )
         try:
-            async for transcript, delta, is_final in self.inferencer.infer(
+            stream = self.inferencer.infer(
                 audio_bytes=audio_bytes,
                 sample_rate=streaming_config.config.sample_rate_hertz,
                 language_code=streaming_config.config.language_code,
                 interim_results=streaming_config.interim_results,
                 context=request_context,
-            ):
-                # 客户端断开后停止继续推送识别结果。
-                if not self._context_is_active(context):
-                    logger.info("Client disconnected; stopping response stream.")
-                    break
-                yield self._make_response(
-                    transcript,
-                    is_final=is_final,
-                    word=delta,
-                )
+            )
+            async with aclosing(stream):
+                async for transcript, delta, is_final in stream:
+                    # 客户端断开后停止继续推送识别结果。
+                    if not self._context_is_active(context):
+                        logger.info("Client disconnected; stopping response stream.")
+                        break
+                    yield self._make_response(
+                        transcript,
+                        is_final=is_final,
+                        word=delta,
+                    )
         except asyncio.CancelledError:
             logger.info("StreamingRecognize cancelled by client.")
             return

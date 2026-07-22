@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from typing import Tuple
 
 import numpy as np
@@ -45,17 +46,19 @@ class GrpcInferencer:
 
         transcript_parser = StreamingTranscriptParser(language_code=language_code)
         # 启动推理，流式输出转写文本
-        async for chunk in self.inferencer.transcribe_stream(
+        stream = self.inferencer.transcribe_stream(
             audio=audio,
             sample_rate=sample_rate,
             context=context,
             language=language_code,
-        ):
-            # 将每个增量片段推入转写解析器，获取当前完整转写、增量文本和是否有更新。
-            transcript, delta, changed = transcript_parser.push(chunk)
-            # 如果启用中间结果且文本有更新，先返回增量片段；最后返回完整转写并标记结束。
-            if interim_results and changed:
-                yield transcript, delta, False
+        )
+        async with aclosing(stream):
+            async for chunk in stream:
+                # 将每个增量片段推入转写解析器，获取当前完整转写、增量文本和是否有更新。
+                transcript, delta, changed = transcript_parser.push(chunk)
+                # 如果启用中间结果且文本有更新，先返回增量片段；最后返回完整转写并标记结束。
+                if interim_results and changed:
+                    yield transcript, delta, False
         # 最后返回完整转写并标记结束
         yield transcript_parser.transcript, "", True
 
