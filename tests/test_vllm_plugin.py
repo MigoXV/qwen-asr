@@ -7,7 +7,7 @@ class VLLMPluginTest(unittest.TestCase):
     def test_registration_is_repeatable(self):
         from vllm import ModelRegistry
 
-        from qwen_asr.inferencers.vllm.plugin import register_qwen_asr
+        from qwen_asr.engines.vllm.plugin import register_qwen_asr
 
         register_qwen_asr()
         register_qwen_asr()

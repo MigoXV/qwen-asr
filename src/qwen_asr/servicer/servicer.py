@@ -8,7 +8,8 @@ from contextlib import aclosing
 import grpc
 
 from google.protobuf.duration_pb2 import Duration
-from qwen_asr.inferencers.grpc_inferencer import GrpcInferencer
+from qwen_asr.inferencers.pipeline import ASRPipeline
+from qwen_asr.engines.errors import EngineCapacityExceeded, EngineUnavailable
 from qwen_asr.protos.asr.ux_speech_pb2 import (
     SpeechRecognitionAlternative,
     StreamingRecognizeResponse,
@@ -32,17 +33,40 @@ class ASRServicer(UxSpeechServicer):
 
     def __init__(
         self,
-        inferencer: GrpcInferencer,
+        inferencer: ASRPipeline,
         default_context: str = "",
+        max_concurrent_requests: int = 32,
     ) -> None:
         super().__init__()
         self.default_context = default_context
         self.inferencer = inferencer
+        if max_concurrent_requests < 1:
+            raise ValueError("max_concurrent_requests must be positive")
+        self.max_concurrent_requests = max_concurrent_requests
+        self.active_requests = 0
 
     def close(self) -> None:
         return None
 
     async def StreamingRecognize(
+        self,
+        request_iterator: AsyncIterator[StreamingRecognizeRequest],
+        context: grpc.aio.ServicerContext,
+    ) -> AsyncIterator[StreamingRecognizeResponse]:
+        if self.active_requests >= self.max_concurrent_requests:
+            logger.warning("RPC capacity reached: inflight=%d", self.active_requests)
+            await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Concurrent RPC limit exceeded")
+            return
+        self.active_requests += 1
+        try:
+            stream = self._recognize(request_iterator, context)
+            async with aclosing(stream):
+                async for response in stream:
+                    yield response
+        finally:
+            self.active_requests -= 1
+
+    async def _recognize(
         self,
         request_iterator: AsyncIterator[StreamingRecognizeRequest],
         context: grpc.aio.ServicerContext,
@@ -88,6 +112,14 @@ class ASRServicer(UxSpeechServicer):
         except asyncio.CancelledError:
             logger.info("StreamingRecognize cancelled by client.")
             return
+        except EngineCapacityExceeded as exc:
+            await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, str(exc))
+        except EngineUnavailable as exc:
+            await context.abort(grpc.StatusCode.UNAVAILABLE, str(exc))
+        except TimeoutError as exc:
+            await context.abort(grpc.StatusCode.DEADLINE_EXCEEDED, str(exc))
+        except ValueError as exc:
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
         except Exception as exc:
             logger.error("Inference failed: %s", exc, exc_info=True)
             await context.abort(

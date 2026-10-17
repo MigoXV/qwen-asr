@@ -12,7 +12,7 @@ from qwen_asr.protos.asr.ux_speech_pb2 import (
     StreamingRecognitionConfig,
     StreamingRecognizeRequest,
 )
-from qwen_asr.inferencers.grpc_inferencer import GrpcInferencer
+from qwen_asr.inferencers.pipeline import ASRPipeline
 from qwen_asr.servicer.servicer import ASRServicer
 
 from tests.fakes import FakeAbortError, FakeContext, FakeLLM, FakeModel
@@ -76,7 +76,7 @@ def make_servicer(model):
 
 def make_servicer_with_context(model, system_context: str):
     return ASRServicer(
-        inferencer=GrpcInferencer(inferencer=model),
+        inferencer=ASRPipeline(inferencer=model),
         default_context=system_context,
     )
 

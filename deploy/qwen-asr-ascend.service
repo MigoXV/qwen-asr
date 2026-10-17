@@ -1,0 +1,31 @@
+[Unit]
+Description=Qwen3-ASR Ascend gRPC service on 50011
+After=network.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/repositories/qwen-asr
+Environment=QWEN_ASR_MODEL=/root/repositories/qwen-asr/model-bin/Qwen/Qwen3-ASR-0.6B
+Environment=QWEN_ASR_SERVER_PORT=50011
+Environment=QWEN_ASR_WORKERS=4
+Environment=QWEN_ASR_MAX_CONCURRENT_RPCS=32
+Environment=QWEN_ASR_MEMORY_UTILIZATION=0.10
+Environment=OMP_NUM_THREADS=4
+Environment=OPENBLAS_NUM_THREADS=1
+EnvironmentFile=-/etc/qwen-asr-ascend.env
+ExecStart=/bin/bash /root/repositories/qwen-asr/scripts/serve_ascend.sh
+ExecStartPost=/bin/bash /root/repositories/qwen-asr/scripts/check_asr.sh
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=1800
+TimeoutStopSec=45
+KillMode=control-group
+LimitNOFILE=65536
+TasksMax=4096
+
+[Install]
+WantedBy=multi-user.target

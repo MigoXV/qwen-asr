@@ -15,71 +15,36 @@
 # limitations under the License.
 from __future__ import annotations
 
-import asyncio
-import inspect
 import logging
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
 
 import numpy as np
-from vllm import SamplingParams
-from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.engine.async_llm_engine import AsyncLLMEngine
-from vllm.sampling_params import RequestOutputKind
 
-from qwen_asr.core.transformers_backend.processing_qwen3_asr import (
-    Qwen3ASRProcessor,
-)
+from qwen_asr.engines.vllm.engine import VLLMEngine
 from qwen_asr.inferencers.language import resolve_language_code
-from qwen_asr.inferencers.vllm.utils import filter_async_engine_kwargs
 
 logger = logging.getLogger(__name__)
 
 
 class VLLMInferencer:
-    """
-    Qwen3-ASR 的 vLLM 后端推理器。
+    """将 ASR 音频、语言和上下文转换为 vLLM 多模态请求。"""
 
-    说明：
-      - 每个请求使用一段上下文文本和一段音频。
-      - 如果传入 language，会在 assistant prompt 后追加
-        "language {Language}<asr_text>"，要求模型只输出识别文本。
-    """
-
-    def __init__(
-        self,
-        model: Any,
-        processor: Any,
-        sampling_params: Any,
-    ):
-        self.model = model
-        self.processor = processor
-        self.sampling_params = sampling_params
+    def __init__(self, engine: VLLMEngine):
+        self.engine = engine
+        self.processor = engine.processor
 
     @classmethod
-    def LLM(
-        cls,
-        model: str,
-        max_new_tokens: Optional[int] = 4096,
-        **kwargs,
-    ) -> "VLLMInferencer":
-        # 只透传 AsyncEngineArgs 支持的 vLLM 参数。
-        engine_kwargs = filter_async_engine_kwargs(AsyncEngineArgs, kwargs)
-        llm = AsyncLLMEngine.from_engine_args(
-            AsyncEngineArgs(model=model, **engine_kwargs)
-        )
-        # processor 负责构造 Qwen3-ASR 的多模态输入。
-        processor = Qwen3ASRProcessor.from_pretrained(model, fix_mistral_regex=True)
-        sampling_params = SamplingParams(
-            **({"temperature": 0.0, "max_tokens": max_new_tokens})
-        )
-        return cls(
-            model=llm,
-            processor=processor,
-            sampling_params=sampling_params,
-        )
+    def LLM(cls, model: str, max_new_tokens: Optional[int] = 4096, **kwargs):
+        return cls(VLLMEngine.load(model=model, max_new_tokens=max_new_tokens, **kwargs))
+
+    async def aclose(self) -> None:
+        await self.engine.aclose()
+
+    @property
+    def errored(self) -> bool:
+        return self.engine.errored
 
     async def transcribe_stream(
         self,
@@ -99,7 +64,7 @@ class VLLMInferencer:
         force_lang = self._normalize_force_language(language)
         prompt = self._build_text_prompt(context=context, force_language=force_lang)
         inp = {"prompt": prompt, "multi_modal_data": {"audio": [(audio, sample_rate)]}}
-        stream = self._stream_generate_single(inp)
+        stream = self.engine.generate_stream(inp)
         async with aclosing(stream):
             async for chunk in stream:
                 yield chunk
@@ -135,55 +100,3 @@ class VLLMInferencer:
         if force_language:
             base = base + f"language {force_language}{'<asr_text>'}"
         return base
-
-    async def _abort_request(self, request_id: str) -> None:
-        # 兼容不同 vLLM 版本的 abort 调用签名。
-        abort = getattr(self.model, "abort", None)
-        if abort is None:
-            return
-        try:
-            result = abort(request_id)
-        except TypeError:
-            result = abort(request_id=request_id)
-        if inspect.isawaitable(result):
-            await result
-
-    async def _stream_generate_single(
-        self, inp: Dict[str, Any]
-    ) -> AsyncIterator[str]:
-        # 每个请求使用独立 ID，方便取消时精确 abort。
-        request_id = uuid4().hex
-        sampling_params = (
-            self.sampling_params.clone()
-            if hasattr(self.sampling_params, "clone")
-            else self.sampling_params
-        )
-        sampling_params.output_kind = RequestOutputKind.DELTA
-        finished = False
-        try:
-            # DELTA 模式保证每次只返回新增文本，避免在长请求中保留累计副本。
-            async for out in self.model.generate(
-                inp,
-                sampling_params,
-                request_id=request_id,
-            ):
-                if not out.outputs:
-                    continue
-
-                delta_text = out.outputs[0].text or ""
-                if delta_text:
-                    yield delta_text
-            finished = True
-        except asyncio.CancelledError:
-            logger.warning(
-                "Streaming inference interrupted, aborting request %s", request_id
-            )
-            raise
-        except Exception:
-            logger.warning(
-                "Streaming inference failed, aborting request %s", request_id
-            )
-            raise
-        finally:
-            if not finished:
-                await self._abort_request(request_id)

@@ -1,0 +1,17 @@
+# Python 3.10 / aarch64；固定旧版 vLLM 运行时的兼容依赖。
+numpy==1.26.4
+torch==2.8.0
+torch-npu==2.8.0
+torchvision==0.23.0
+vllm-ascend==0.13.0rc1
+compressed-tensors==0.12.2
+transformers==4.57.6
+typer==0.24.2
+opencv-python-headless==4.11.0.86
+openai==2.54.0
+mcp==1.30.0
+mistral-common==1.8.6
+gguf==0.17.1
+fastapi-cloud-cli==0.14.0
+ml-dtypes==0.5.4
+setuptools==80.10.2
