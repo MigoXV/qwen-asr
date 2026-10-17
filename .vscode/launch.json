@@ -1,14 +1,25 @@
 {
-    // 使用 IntelliSense 了解相关属性。 
-    // 悬停以查看现有属性的描述。
-    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "grpc app",
+            "name": "Qwen ASR: vLLM",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/qwen_asr/commands/app.py",
+            "module": "qwen_asr.commands.app",
+            "args": ["vllm"],
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+                "VLLM_WORKER_MULTIPROC_METHOD": "spawn"
+            }
+        },
+        {
+            "name": "Qwen ASR: Transformers",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "qwen_asr.commands.app",
+            "args": ["transformers"],
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env"
         },
@@ -18,10 +29,9 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
-                "VLLM_WORKER_MULTIPROC_METHOD": "spawn"
+                "PYTHONPATH": "${workspaceFolder}"
             }
         }
     ]

@@ -10,7 +10,7 @@ import torch
 src_path = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(src_path))
 
-from qwen_asr.inferencers.transformers import TransformersInferencer  # noqa: E402
+from qwen_asr.engines.transformers.engine import TransformersEngine  # noqa: E402
 
 
 class FakeTransformersModel:
@@ -20,7 +20,7 @@ class FakeTransformersModel:
 
 class TransformersInputPreparationTest(unittest.TestCase):
     def test_float_inputs_are_cast_to_model_dtype(self):
-        inferencer = TransformersInferencer(FakeTransformersModel(), processor=None)
+        inferencer = TransformersEngine(FakeTransformersModel(), processor=None)
 
         inputs = inferencer._prepare_model_inputs(
             {

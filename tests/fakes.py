@@ -96,13 +96,25 @@ class FakeLLM:
         lora_request=None,
         priority=0,
     ):
-        del sampling_params, lora_request, priority
+        del lora_request, priority
         engine_request_id = str(request_id or self._next_request_id())
+        output_kind = getattr(sampling_params, "output_kind", None)
+        is_delta = str(getattr(output_kind, "name", output_kind)).lower() == "delta"
+        previous_text = ""
         async for output in self.llm_engine.generate(engine_request_id, inp):
+            if is_delta:
+                current_text = output.outputs[0].text
+                if current_text.startswith(previous_text):
+                    output.outputs[0].text = current_text[len(previous_text) :]
+                previous_text = current_text
             yield output
 
     async def abort(self, request_id: str):
         await self.llm_engine.abort_request(request_id)
+
+    @property
+    def active_request_ids(self) -> set[str]:
+        return set(self.llm_engine._active)
 
 
 class FakeModel:
@@ -131,24 +143,19 @@ class FakeModel:
         request_id = f"request-{next(self._counter)}"
         prompt = self._build_text_prompt(context, self._normalize_force_language(language))
         self.seen_audios.append((audio, sample_rate))
-        cumulative_text = ""
         finished = False
+        sampling_params = self.sampling_params.clone()
+        sampling_params.output_kind = "delta"
         try:
             async for output in self.model.generate(
                 {
                     "prompt": prompt,
                     "multi_modal_data": {"audio": [(audio, sample_rate)]},
                 },
-                self.sampling_params.clone(),
+                sampling_params,
                 request_id=request_id,
             ):
-                current_text = output.outputs[0].text or ""
-                if current_text.startswith(cumulative_text):
-                    delta_text = current_text[len(cumulative_text) :]
-                    cumulative_text = current_text
-                else:
-                    delta_text = current_text
-                    cumulative_text = cumulative_text + current_text
+                delta_text = output.outputs[0].text or ""
                 if delta_text:
                     yield delta_text
             finished = True

@@ -7,7 +7,7 @@ gRPC 流式 ASR 客户端 Demo
 使用方法：
   1. 启动服务端（先确保模型已加载）：
        QWEN_ASR_MODEL=/workspace/model-bin/Qwen/Qwen3-ASR-0.6B \
-       python -m qwen_asr.commands.app
+       python -m qwen_asr.commands.app vllm
 
   2. 运行本客户端：
        python tests/demo_client.py

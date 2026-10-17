@@ -3,14 +3,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 
 import grpc
 
 from google.protobuf.duration_pb2 import Duration
-from qwen_asr.commands.utils import build_transformers_kwargs, build_vllm_kwargs
-from qwen_asr.configs import AppConfig
-from qwen_asr.configs.constants import BACKEND_TRANSFORMERS, BACKEND_VLLM
-from qwen_asr.inferencers.grpc_inferencer import GrpcInferencer
+from qwen_asr.inferencers.pipeline import ASRPipeline
+from qwen_asr.engines.errors import EngineCapacityExceeded, EngineUnavailable
 from qwen_asr.protos.asr.ux_speech_pb2 import (
     SpeechRecognitionAlternative,
     StreamingRecognizeResponse,
@@ -32,39 +31,42 @@ class ASRServicer(UxSpeechServicer):
     并将其视为完整音频。返回一次最终结果后结束 RPC。
     """
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        inferencer: ASRPipeline,
+        default_context: str = "",
+        max_concurrent_requests: int = 32,
+    ) -> None:
         super().__init__()
-        self.default_context = str(getattr(config, "context", "") or "")
-        self.inferencer = self._load_inferencer(config)
+        self.default_context = default_context
+        self.inferencer = inferencer
+        if max_concurrent_requests < 1:
+            raise ValueError("max_concurrent_requests must be positive")
+        self.max_concurrent_requests = max_concurrent_requests
+        self.active_requests = 0
 
     def close(self) -> None:
         return None
 
-    @staticmethod
-    def _load_inferencer(config: AppConfig) -> GrpcInferencer:
-        """按应用配置加载后端推理器。"""
-        logger.info("Loading model from %s …", config.model)
-        # transformers 后端
-        if config.backend == BACKEND_TRANSFORMERS:
-            from qwen_asr.inferencers.transformers import TransformersInferencer
-
-            inferencer = TransformersInferencer.LLM(
-                model=config.model,
-                **build_transformers_kwargs(config),
-            )
-        # vLLM 后端
-        elif config.backend == BACKEND_VLLM:
-            from qwen_asr.inferencers.vllm import VLLMInferencer
-
-            inferencer = VLLMInferencer.LLM(
-                model=config.model,
-                **build_vllm_kwargs(config),
-            )
-        else:
-            raise ValueError(f"Unsupported backend: {config.backend}")
-        return GrpcInferencer(inferencer=inferencer)
-
     async def StreamingRecognize(
+        self,
+        request_iterator: AsyncIterator[StreamingRecognizeRequest],
+        context: grpc.aio.ServicerContext,
+    ) -> AsyncIterator[StreamingRecognizeResponse]:
+        if self.active_requests >= self.max_concurrent_requests:
+            logger.warning("RPC capacity reached: inflight=%d", self.active_requests)
+            await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Concurrent RPC limit exceeded")
+            return
+        self.active_requests += 1
+        try:
+            stream = self._recognize(request_iterator, context)
+            async with aclosing(stream):
+                async for response in stream:
+                    yield response
+        finally:
+            self.active_requests -= 1
+
+    async def _recognize(
         self,
         request_iterator: AsyncIterator[StreamingRecognizeRequest],
         context: grpc.aio.ServicerContext,
@@ -89,25 +91,35 @@ class ASRServicer(UxSpeechServicer):
             hotwords=streaming_config.config.hotwords,
         )
         try:
-            async for transcript, delta, is_final in self.inferencer.infer(
+            stream = self.inferencer.infer(
                 audio_bytes=audio_bytes,
                 sample_rate=streaming_config.config.sample_rate_hertz,
                 language_code=streaming_config.config.language_code,
                 interim_results=streaming_config.interim_results,
                 context=request_context,
-            ):
-                # 客户端断开后停止继续推送识别结果。
-                if not self._context_is_active(context):
-                    logger.info("Client disconnected; stopping response stream.")
-                    break
-                yield self._make_response(
-                    transcript,
-                    is_final=is_final,
-                    word=delta,
-                )
+            )
+            async with aclosing(stream):
+                async for transcript, delta, is_final in stream:
+                    # 客户端断开后停止继续推送识别结果。
+                    if not self._context_is_active(context):
+                        logger.info("Client disconnected; stopping response stream.")
+                        break
+                    yield self._make_response(
+                        transcript,
+                        is_final=is_final,
+                        word=delta,
+                    )
         except asyncio.CancelledError:
             logger.info("StreamingRecognize cancelled by client.")
             return
+        except EngineCapacityExceeded as exc:
+            await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, str(exc))
+        except EngineUnavailable as exc:
+            await context.abort(grpc.StatusCode.UNAVAILABLE, str(exc))
+        except TimeoutError as exc:
+            await context.abort(grpc.StatusCode.DEADLINE_EXCEEDED, str(exc))
+        except ValueError as exc:
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
         except Exception as exc:
             logger.error("Inference failed: %s", exc, exc_info=True)
             await context.abort(

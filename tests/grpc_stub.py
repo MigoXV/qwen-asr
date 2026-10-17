@@ -14,6 +14,9 @@ def install_fake_grpc() -> None:
         INVALID_ARGUMENT="INVALID_ARGUMENT",
         INTERNAL="INTERNAL",
         UNIMPLEMENTED="UNIMPLEMENTED",
+        RESOURCE_EXHAUSTED="RESOURCE_EXHAUSTED",
+        UNAVAILABLE="UNAVAILABLE",
+        DEADLINE_EXCEEDED="DEADLINE_EXCEEDED",
     )
     grpc.ServicerContext = object
     grpc.Channel = object

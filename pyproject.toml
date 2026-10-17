@@ -15,11 +15,30 @@ dependencies = [
 "grpcio (>=1.78.0,<2.0.0)",
 "protobuf (>=6.33.5,<7.0.0)",
 "typer (>=0.24.0,<0.25.0)",
-"omegaconf (>=2.3.0,<3.0.0)",
+"msgpack (>=1.1,<2)",
 ]
+
+[project.scripts]
+qwen-asr = "qwen_asr.commands.app:app"
+
+[project.entry-points."vllm.general_plugins"]
+qwen_asr = "qwen_asr.engines.vllm.plugin:register_qwen_asr"
 
 [tool.poetry]
 packages = [{include = "qwen_asr", from = "src"}]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.poetry.group.ascend-legacy]
+optional = true
+
+[tool.poetry.group.ascend-legacy.dependencies]
+torch = {version = "2.8.0", python = ">=3.10,<3.12"}
+torch-npu = {version = "2.8.0", python = ">=3.10,<3.12", markers = "sys_platform == 'linux'"}
+torchvision = {version = "0.23.0", python = ">=3.10,<3.12"}
+vllm-ascend = {version = "0.13.0rc1", python = ">=3.10,<3.12", markers = "sys_platform == 'linux'"}
+compressed-tensors = {version = "0.12.2", python = ">=3.10,<3.12"}
 
 [[tool.poetry.source]]
 name = "tuna"
